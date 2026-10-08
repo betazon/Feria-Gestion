@@ -14,7 +14,6 @@
     
     .btn { display: block; width: 100%; padding: 12px; margin: 6px 0; font-size: 15px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; text-align: center; color: #fff; }
     
-    /* Contenedor del Menú Principal en 2 Columnas */
     .grid-menu {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -22,7 +21,6 @@
       margin-bottom: 15px;
     }
 
-    /* Formato Tipo Cubo / Tarjeta para cada opción del menú */
     .grid-menu .btn {
       height: 95px;
       margin: 0;
@@ -49,6 +47,9 @@
     .card { background: #121212; border: 1px solid #333; padding: 10px; border-radius: 6px; margin-bottom: 8px; }
     .hidden { display: none !important; }
     
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: #1a1a1a; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; border: 1px solid #444; }
+
     .banner-ad { position: fixed; bottom: 0; left: 0; width: 100%; background: #111; color: #00d9ff; text-align: center; padding: 8px; font-size: 12px; font-weight: bold; border-top: 1px solid #333; z-index: 100; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #333; padding: 6px; text-align: left; font-size: 13px; }
@@ -66,10 +67,11 @@
       <img src="foto.jpg" alt="Foto de Portada" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 2px solid #00b359;">
     </div>
     <p style="text-align: center; font-size: 16px;">Desarrollado por:<br>a.rubenramirez@gmail.com</p>
-    <button class="btn btn-green" onclick="mostrarPantalla('pantalla-menu')" style="margin-top: 30px;">INGRESAR AL SISTEMA</button>
+    <button class="btn btn-green" onclick="mostrarPantalla('pantalla-menu')" style="margin-top: 20px;">INGRESAR AL SISTEMA</button>
+    <button class="btn btn-teal" onclick="abrirModalPublicidad()" style="font-size:12px;">⚙️ Configurar Rubro / Publicidad</button>
   </div>
 
-  <!-- PANTALLA 2: MENÚ PRINCIPAL (CUBOS EN 2 COLUMNAS) -->
+  <!-- PANTALLA 2: MENÚ PRINCIPAL -->
   <div id="pantalla-menu" class="hidden">
     <h3 id="lbl-menu-titulo">MENÚ PRINCIPAL</h3>
     
@@ -168,19 +170,23 @@
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
-  <!-- PANTALLA 8: RECETAS / ESCANDALLO -->
+  <!-- PANTALLA 8: RECETAS / CALCULADORA -->
   <div id="pantalla-recetas" class="hidden">
     <h3>ESCANDALLO Y CALCULADORA</h3>
-    <input type="text" id="receta-cod-prod" placeholder="Código de Producto" oninput="cargarDetalleRecetaRegistrada()">
+    
+    <label style="font-size: 13px; color: #ccc;">Buscar producto por nombre o código:</label>
+    <input type="text" id="receta-buscar-prod" placeholder="Escriba detalle o código..." oninput="buscarProductoParaReceta(this.value)">
+    <div id="receta-sugerencias-prod"></div>
+
+    <input type="text" id="receta-cod-prod" placeholder="Código de Producto Seleccionado / Nuevo" oninput="cargarDetalleRecetaRegistrada()" style="margin-top: 8px;">
     
     <div class="card">
       <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Vincular Ingrediente a Receta:</h4>
       <select id="receta-select-insumo"></select>
-      <input type="number" id="receta-cant-usada" placeholder="Cantidad usada por 1 unidad de producto">
+      <input type="number" step="0.01" id="receta-cant-usada" placeholder="Cantidad usada por 1 unidad de producto">
       <button class="btn btn-purple" onclick="vincularIngrediente()">Vincular Ingrediente</button>
     </div>
 
-    <!-- Lista interactiva de ingredientes vinculados -->
     <div id="receta-ingredientes-lista" class="card" style="margin-top:5px;"></div>
 
     <div class="card" style="margin-top:10px;">
@@ -220,9 +226,30 @@
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
-  <!-- BANNER PUBLICITARIO -->
-  <div class="banner-ad">
-    📢 ESPACIO PUBLICITARIO / AUSPICIANTES DE LA FERIA
+  <!-- MODAL DE SELECCIÓN DE PUBLICIDAD -->
+  <div id="modal-publicidad" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 style="margin-top:0;">SELECCIONE SU RUBRO</h3>
+      <p style="font-size:13px; color:#ccc;">Al guardar, se enviará el código por WhatsApp para asignarle el banner de auspiciantes adecuado.</p>
+      
+      <select id="select-rubro-pub">
+        <option value="">-- Elija un Rubro --</option>
+        <option value="1">1. Comida / Panadería</option>
+        <option value="2">2. Ropa / Indumentaria</option>
+        <option value="3">3. Cuero / Marroquinería</option>
+        <option value="4">4. Dulces / Conservas</option>
+        <option value="5">5. Carnes / Chacinados</option>
+        <option value="6">6. Orfebrería / Joyería</option>
+      </select>
+
+      <button class="btn btn-green" onclick="seleccionarRubroPublicidad()">GUARDAR Y NOTIFICAR</button>
+      <button class="btn btn-gray" onclick="cerrarModalPublicidad()">CANCELAR</button>
+    </div>
+  </div>
+
+  <!-- BANNER PUBLICITARIO EN PIE DE PÁGINA -->
+  <div class="banner-ad" id="banner-ad-footer">
+    <span id="banner-texto">📢 ESPACIO PUBLICITARIO / AUSPICIANTES DE LA FERIA</span>
   </div>
 
   <script src="app.js"></script>

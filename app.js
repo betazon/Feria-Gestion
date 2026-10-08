@@ -12,6 +12,16 @@ let productoSeleccionadoVenta = null;
 let filtroConsultaActual = 'todos';
 let ultimosFaltantesCompras = [];
 
+// Lista de Rubros / Publicidades
+const DICCIONARIO_RUBROS = {
+  '1': { nombre: 'Comida', banner: '🥐 Panadería y Comidas - ¡Descuentos en Harinas e Insumos!' },
+  '2': { nombre: 'Ropa', banner: '🧵 Hilos, Telas y Confecciones - Ofertas de Temporada' },
+  '3': { nombre: 'Cuero', banner: '🥩 Cueros, Remaches y Herrajes - Proveedores Seleccionados' },
+  '4': { nombre: 'Dulces', banner: '🍯 Frutas, Frascos y Azúcar - Promociones para Artesanos' },
+  '5': { nombre: 'Carnes', banner: '🔪 Chacinados y Embutidos - Equipamiento Ferial' },
+  '6': { nombre: 'Orfebrería', banner: '💎 Metales, Piedras y Herramientas de Precisión' }
+};
+
 // Control de navegación entre pantallas
 function mostrarPantalla(id) {
   const ids = [
@@ -38,12 +48,13 @@ function mostrarPantalla(id) {
   if (id === 'pantalla-grilla') inicializarGrilla();
 }
 
-// Iniciar siempre en la portada
-document.addEventListener("DOMContentLoaded", () => {
+// Iniciar siempre en la portada y verificar rubro de publicidad
+document.addEventListener("DOMContentLoaded", async () => {
   mostrarPantalla('pantalla-portada');
+  await actualizarBannerPublicidad();
 });
 
-// Lógica de Menú y Rubro (Productor/Revendedor)
+// Lógica de Menú y Modo (Productor/Revendedor)
 async function obtenerRubro() {
   const conf = await db.configuracion.get('rubro');
   return conf ? conf.valor : 'revendedor';
@@ -73,6 +84,41 @@ async function cargarMenu() {
     if (btnInsumos) btnInsumos.classList.add('hidden');
     if (btnRecetas) btnRecetas.classList.add('hidden');
     if (btnGrilla) btnGrilla.classList.remove('hidden');
+  }
+}
+
+// GESTIÓN DE PUBLICIDAD Y RUBRO DE FERIA
+async function abrirModalPublicidad() {
+  document.getElementById('modal-publicidad').classList.remove('hidden');
+}
+
+function cerrarModalPublicidad() {
+  document.getElementById('modal-publicidad').classList.add('hidden');
+}
+
+async function seleccionarRubroPublicidad() {
+  const cod = document.getElementById('select-rubro-pub').value;
+  if (!cod) return alert("Seleccione un rubro.");
+
+  await db.configuracion.put({ clave: 'rubro_publicidad', valor: cod });
+  await actualizarBannerPublicidad();
+
+  const rubroInfo = DICCIONARIO_RUBROS[cod];
+  const mensaje = `Hola, acabo de configurar mi app de feria con el Rubro: Código ${cod} (${rubroInfo.nombre}). Solicitó el banner publicitario correspondiente.`;
+  
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensaje)}`, '_blank');
+  cerrarModalPublicidad();
+}
+
+async function actualizarBannerPublicidad() {
+  const conf = await db.configuracion.get('rubro_publicidad');
+  const bannerEl = document.getElementById('banner-texto');
+  if (!bannerEl) return;
+
+  if (conf && DICCIONARIO_RUBROS[conf.valor]) {
+    bannerEl.innerText = `📢 ${DICCIONARIO_RUBROS[conf.valor].banner}`;
+  } else {
+    bannerEl.innerText = `📢 ESPACIO PUBLICITARIO / AUSPICIANTES DE LA FERIA`;
   }
 }
 
@@ -207,7 +253,6 @@ async function buscarProductoParaEditar() {
     document.getElementById('prod-estado').innerText = "Nuevo producto.";
   }
 
-  // Sincroniza costos y referencia desde el escandallo si tiene receta cargada
   await importarDesdeEscandallo(false);
 }
 
@@ -233,7 +278,7 @@ async function importarDesdeEscandallo(mostrarAlerta = true) {
   }
 
   document.getElementById('prod-costo').value = costoCalculado.toFixed(2);
-  const margen = 2.0; // Multiplicador para precio de referencia (100% de ganancia)
+  const margen = 2.0; 
   const precioRefSugerido = costoCalculado * margen;
   document.getElementById('prod-ref').value = precioRefSugerido.toFixed(2);
 
@@ -260,7 +305,7 @@ async function guardarProducto() {
   document.getElementById('prod-nombre').value = '';
 }
 
-// Insumos y Recetas
+// Insumos y Recetas / Calculadora
 async function guardarInsumo() {
   const nombre = document.getElementById('insumo-nombre').value.trim();
   if (!nombre) return alert("Ingrese nombre del ingrediente.");
@@ -286,6 +331,37 @@ async function cargarOpcionesRecetas() {
     sel.innerHTML = '<option value="">-- Seleccionar Insumo --</option>' + 
       insumos.map(i => `<option value="${i.id}">${i.nombre} (${i.unidad}) - $${i.costo_unitario}/${i.unidad}</option>`).join('');
   }
+}
+
+// BÚSQUEDA PREDICTIVA EN CALCULADORA POR NOMBRE O CÓDIGO
+async function buscarProductoParaReceta(texto) {
+  const cont = document.getElementById('receta-sugerencias-prod');
+  if (!cont) return;
+  cont.innerHTML = '';
+
+  if (!texto.trim()) return;
+
+  const prods = await db.productos
+    .filter(p => p.detalle.toLowerCase().includes(texto.toLowerCase()) || p.codigo.toLowerCase().includes(texto.toLowerCase()))
+    .limit(4)
+    .toArray();
+
+  prods.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'btn btn-blue';
+    b.style.fontSize = '12px';
+    b.style.margin = '2px 0';
+    b.innerText = `${p.detalle} (Cód: ${p.codigo})`;
+    b.onclick = () => seleccionarProductoParaReceta(p);
+    cont.appendChild(b);
+  });
+}
+
+function seleccionarProductoParaReceta(p) {
+  document.getElementById('receta-sugerencias-prod').innerHTML = '';
+  document.getElementById('receta-buscar-prod').value = p.detalle;
+  document.getElementById('receta-cod-prod').value = p.codigo;
+  cargarDetalleRecetaRegistrada();
 }
 
 async function vincularIngrediente() {
@@ -373,7 +449,6 @@ async function calcularEscandallo() {
   document.getElementById('receta-resultado-tabla').innerHTML = htmlMateriales;
   document.getElementById('receta-resultado').innerText = `Costo Unitario: $${costoUnit.toFixed(2)} | Costo Lote (${lote} un): $${costoTotalLote.toFixed(2)}`;
   
-  // Actualizar el costo del producto en la BD automáticamente
   const prodExistente = await db.productos.get(cod);
   if (prodExistente) {
     await db.productos.update(cod, { precio_costo: costoUnit });
@@ -381,7 +456,7 @@ async function calcularEscandallo() {
 }
 
 function compartirComprasWhatsApp() {
-  if (ultimosFaltantesCompras.length === 0) return alert("No hay faltantes registrados para el lote calculated.");
+  if (ultimosFaltantesCompras.length === 0) return alert("No hay faltantes registrados para el lote calculado.");
   let txt = "*COMPRAS DE INSUMOS FALTANTES*\n\n";
   ultimosFaltantesCompras.forEach(f => {
     txt += `• ${f.nombre}: Faltan ${f.faltante.toFixed(2)} ${f.unidad}\n`;
