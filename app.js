@@ -1,0 +1,364 @@
+// Configuración de la base de datos local IndexedDB (Dexie.js)
+const db = new Dexie("FeriaDB");
+db.version(1).stores({
+  productos: 'codigo, detalle, precio_costo, precio_ref, stock, tipo, foto_path',
+  ventas: '++id, fecha, codigo, detalle, costo_unit, precio_venta, cantidad, ganancia',
+  insumos: '++id, nombre, unidad, costo_unitario, stock',
+  recetas: '[codigo_prod+id_insumo], codigo_prod, id_insumo, cantidad_usada',
+  configuracion: 'clave, valor'
+});
+
+let productoSeleccionadoVenta = null;
+let filtroConsultaActual = 'todos';
+let ultimosFaltantesCompras = [];
+
+// Control de navegación entre pantallas
+function mostrarPantalla(id) {
+  const ids = [
+    'pantalla-portada', 'pantalla-menu', 'pantalla-venta', 'pantalla-reporte',
+    'pantalla-consulta', 'pantalla-nuevo', 'pantalla-insumos', 'pantalla-recetas',
+    'pantalla-grilla', 'pantalla-backup', 'pantalla-borrar'
+  ];
+
+  ids.forEach(pId => {
+    const el = document.getElementById(pId);
+    if (el) el.classList.add('hidden');
+  });
+
+  const activo = document.getElementById(id);
+  if (activo) activo.classList.remove('hidden');
+
+  if (id === 'pantalla-menu') cargarMenu();
+  if (id === 'pantalla-reporte') {
+    document.getElementById('reporte-fecha').value = new Date().toISOString().split('T')[0];
+    cargarReporteVentas();
+  }
+  if (id === 'pantalla-consulta') cargarConsultaStock();
+  if (id === 'pantalla-recetas') cargarOpcionesRecetas();
+  if (id === 'pantalla-grilla') inicializarGrilla();
+}
+
+// Iniciar siempre en la portada
+document.addEventListener("DOMContentLoaded", () => {
+  mostrarPantalla('pantalla-portada');
+});
+
+// Lógica de Menú y Rubro (Productor/Revendedor)
+async function obtenerRubro() {
+  const conf = await db.configuracion.get('rubro');
+  return conf ? conf.valor : 'revendedor';
+}
+
+async function cambiarRubro() {
+  const actual = await obtenerRubro();
+  const nuevo = actual === 'revendedor' ? 'productor' : 'revendedor';
+  await db.configuracion.put({ clave: 'rubro', valor: nuevo });
+  cargarMenu();
+}
+
+async function cargarMenu() {
+  const rubro = await obtenerRubro();
+  document.getElementById('lbl-menu-titulo').innerText = `MENÚ PRINCIPAL (${rubro.toUpperCase()})`;
+  document.getElementById('btn-cambiar-rubro').innerText = `Modo actual: ${rubro.charAt(0).toUpperCase() + rubro.slice(1)} (Toca para cambiar)`;
+  
+  const btnInsumos = document.getElementById('btn-insumos');
+  const btnRecetas = document.getElementById('btn-recetas');
+  const btnGrilla = document.getElementById('btn-grilla');
+
+  if (rubro === 'productor') {
+    if (btnInsumos) btnInsumos.classList.remove('hidden');
+    if (btnRecetas) btnRecetas.classList.remove('hidden');
+    if (btnGrilla) btnGrilla.classList.add('hidden');
+  } else {
+    if (btnInsumos) btnInsumos.classList.add('hidden');
+    if (btnRecetas) btnRecetas.classList.add('hidden');
+    if (btnGrilla) btnGrilla.classList.remove('hidden');
+  }
+}
+
+// Ventas
+async function buscarVentaPredictiva(texto) {
+  const cont = document.getElementById('venta-sugerencias');
+  cont.innerHTML = '';
+  if (!texto.trim()) return;
+
+  const prods = await db.productos
+    .filter(p => p.detalle.toLowerCase().includes(texto.toLowerCase()) || p.codigo.toLowerCase().includes(texto.toLowerCase()))
+    .limit(3)
+    .toArray();
+
+  prods.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'btn btn-blue';
+    b.style.fontSize = '12px';
+    b.innerText = `${p.detalle} ($${p.precio_ref.toFixed(2)}) - Stock: ${p.stock}`;
+    b.onclick = () => seleccionarProductoVenta(p);
+    cont.appendChild(b);
+  });
+}
+
+function seleccionarProductoVenta(p) {
+  productoSeleccionadoVenta = p;
+  document.getElementById('venta-sugerencias').innerHTML = '';
+  document.getElementById('venta-buscar').value = p.detalle;
+  document.getElementById('venta-detalle').innerText = `Detalle: ${p.detalle}`;
+  document.getElementById('venta-costo').innerText = `Costo Unit: $${p.precio_costo.toFixed(2)}`;
+  document.getElementById('venta-ref').innerText = `Precio Ref: $${p.precio_ref.toFixed(2)} | Stock: ${p.stock}`;
+  document.getElementById('venta-precio').value = p.precio_ref;
+}
+
+async function validarYConfirmarVenta() {
+  if (!productoSeleccionadoVenta) return alert("Seleccione un producto primero.");
+  
+  const cant = parseInt(document.getElementById('venta-cant').value || 1);
+  const pVenta = parseFloat(document.getElementById('venta-precio').value || 0);
+  const stockNuevo = productoSeleccionadoVenta.stock - cant;
+
+  if (stockNuevo < 0) {
+    if (!confirm(`¡Stock insuficiente!\nStock actual: ${productoSeleccionadoVenta.stock}\nQuedará en: ${stockNuevo}\n¿Desea vender de todos modos?`)) {
+      return;
+    }
+  }
+
+  await db.ventas.add({
+    fecha: new Date().toISOString(),
+    codigo: productoSeleccionadoVenta.codigo,
+    detalle: productoSeleccionadoVenta.detalle,
+    costo_unit: productoSeleccionadoVenta.precio_costo,
+    precio_venta: pVenta,
+    cantidad: cant,
+    ganancia: (pVenta - productoSeleccionadoVenta.precio_costo) * cant
+  });
+
+  await db.productos.update(productoSeleccionadoVenta.codigo, { stock: stockNuevo });
+  alert("Venta registrada.");
+
+  document.getElementById('venta-buscar').value = '';
+  document.getElementById('venta-precio').value = '';
+  document.getElementById('venta-cant').value = '1';
+  productoSeleccionadoVenta = null;
+}
+
+// Reportes
+async function cargarReporteVentas() {
+  const fechaSel = document.getElementById('reporte-fecha').value;
+  const ventas = await db.ventas.toArray();
+  const filtradas = ventas.filter(v => v.fecha.startsWith(fechaSel));
+
+  let totalVendido = 0;
+  let totalGanancia = 0;
+  let html = '<table><tr><th>Hora</th><th>Detalle</th><th>Cant</th><th>Subtotal</th><th>Ganancia</th></tr>';
+
+  filtradas.forEach((v, i) => {
+    const subtotal = v.cantidad * v.precio_venta;
+    totalVendido += subtotal;
+    totalGanancia += v.ganancia;
+    html += `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
+      <td>${v.fecha.substring(11, 16)}</td><td>${v.detalle}</td><td>${v.cantidad}</td><td>$${subtotal.toFixed(2)}</td><td>$${v.ganancia.toFixed(2)}</td>
+    </tr>`;
+  });
+
+  document.getElementById('reporte-lista').innerHTML = html + '</table>';
+  document.getElementById('reporte-totales').innerText = `Vendido: $${totalVendido.toFixed(2)} | Ganancia: $${totalGanancia.toFixed(2)}`;
+}
+
+function compartirReporteWhatsApp() {
+  const fechaSel = document.getElementById('reporte-fecha').value;
+  const texto = document.getElementById('reporte-totales').innerText;
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(`*REPORTE DE VENTAS - ${fechaSel}*\n${texto}`)}`, '_blank');
+}
+
+// Consultas
+async function cargarConsultaStock(tipo) {
+  if (tipo) filtroConsultaActual = tipo;
+  const filtroTxt = document.getElementById('consulta-filtro').value.toLowerCase();
+  
+  let prods = await db.productos.toArray();
+  prods = prods.filter(p => {
+    const coincideTxt = p.detalle.toLowerCase().includes(filtroTxt) || p.codigo.toLowerCase().includes(filtroTxt);
+    const coincideTipo = filtroConsultaActual === 'todos' || p.tipo === filtroConsultaActual;
+    return coincideTxt && coincideTipo;
+  });
+
+  let html = '<table><tr><th>Cód</th><th>Detalle</th><th>Costo</th><th>P.Ref</th><th>Stk</th></tr>';
+  prods.forEach((p, i) => {
+    html += `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
+      <td><b>${p.codigo}</b></td><td>${p.detalle}</td><td>$${p.precio_costo.toFixed(2)}</td><td style="color:#00e676;">$${p.precio_ref.toFixed(2)}</td><td style="color:#ffb74d;">${p.stock}</td>
+    </tr>`;
+  });
+  document.getElementById('consulta-tabla').innerHTML = html + '</table>';
+}
+
+// Productos (Alta / Edición)
+async function buscarProductoParaEditar() {
+  const cod = document.getElementById('prod-codigo').value.trim();
+  const p = await db.productos.get(cod);
+  if (p) {
+    document.getElementById('prod-nombre').value = p.detalle;
+    document.getElementById('prod-costo').value = p.precio_costo;
+    document.getElementById('prod-ref').value = p.precio_ref;
+    document.getElementById('prod-stock').value = p.stock;
+    document.getElementById('prod-tipo').value = p.tipo || 'comestible';
+    document.getElementById('prod-foto').value = p.foto_path || '';
+    document.getElementById('prod-estado').innerText = "Producto cargado.";
+  } else {
+    document.getElementById('prod-estado').innerText = "Nuevo producto.";
+  }
+}
+
+async function guardarProducto() {
+  const codigo = document.getElementById('prod-codigo').value.trim();
+  const detalle = document.getElementById('prod-nombre').value.trim();
+  if (!codigo || !detalle) return alert("Complete código y detalle.");
+
+  await db.productos.put({
+    codigo, detalle,
+    precio_costo: parseFloat(document.getElementById('prod-costo').value || 0),
+    precio_ref: parseFloat(document.getElementById('prod-ref').value || 0),
+    stock: parseInt(document.getElementById('prod-stock').value || 0),
+    tipo: document.getElementById('prod-tipo').value,
+    foto_path: document.getElementById('prod-foto').value.trim()
+  });
+
+  alert("Guardado correctamente.");
+  document.getElementById('prod-codigo').value = '';
+  document.getElementById('prod-nombre').value = '';
+}
+
+// Insumos y Recetas
+async function guardarInsumo() {
+  const nombre = document.getElementById('insumo-nombre').value.trim();
+  if (!nombre) return alert("Ingrese nombre del ingrediente.");
+
+  await db.insumos.add({
+    nombre,
+    unidad: document.getElementById('insumo-unidad').value.trim() || 'un',
+    costo_unitario: parseFloat(document.getElementById('insumo-costo').value || 0),
+    stock: parseFloat(document.getElementById('insumo-stock').value || 0)
+  });
+
+  alert("Insumo registrado.");
+  document.getElementById('insumo-nombre').value = '';
+}
+
+async function cargarOpcionesRecetas() {
+  const insumos = await db.insumos.toArray();
+  const sel = document.getElementById('receta-select-insumo');
+  sel.innerHTML = insumos.map(i => `<option value="${i.id}">${i.nombre} (${i.unidad})</option>`).join('');
+}
+
+async function vincularIngrediente() {
+  const codProd = document.getElementById('receta-cod-prod').value.trim();
+  const idInsumo = parseInt(document.getElementById('receta-select-insumo').value);
+  const cantUsada = parseFloat(document.getElementById('receta-cant-usada').value || 0);
+
+  if (!codProd || !idInsumo || cantUsada <= 0) return alert("Complete datos de la receta.");
+  await db.recetas.put({ codigo_prod: codProd, id_insumo: idInsumo, cantidad_usada: cantUsada });
+  alert("Ingrediente vinculado.");
+}
+
+async function calcularEscandallo() {
+  const cod = document.getElementById('receta-cod-prod').value.trim();
+  const lote = parseInt(document.getElementById('receta-lote').value || 1);
+  const componentes = await db.recetas.where('codigo_prod').equals(cod).toArray();
+  
+  if (componentes.length === 0) return alert("No hay receta asignada a este código.");
+
+  let costoUnit = 0;
+  ultimosFaltantesCompras = [];
+
+  for (let c of componentes) {
+    const ins = await db.insumos.get(c.id_insumo);
+    if (ins) {
+      costoUnit += ins.costo_unitario * c.cantidad_usada;
+      const requerido = c.cantidad_usada * lote;
+      if (ins.stock < requerido) {
+        ultimosFaltantesCompras.push({ nombre: ins.nombre, faltante: requerido - ins.stock, unidad: ins.unidad });
+      }
+    }
+  }
+
+  document.getElementById('receta-resultado').innerText = `Costo Unitario: $${costoUnit.toFixed(2)} | Costo Lote (${lote} un): $${(costoUnit * lote).toFixed(2)}`;
+}
+
+function compartirComprasWhatsApp() {
+  if (ultimosFaltantesCompras.length === 0) return alert("No hay faltantes registradas.");
+  let txt = "*COMPRAS DE INSUMOS FALTANTES*\n\n";
+  ultimosFaltantesCompras.forEach(f => {
+    txt += `• ${f.nombre}: Faltan ${f.faltante.toFixed(2)} ${f.unidad}\n`;
+  });
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
+}
+
+// Grilla Rápida
+function inicializarGrilla() {
+  document.getElementById('contenedor-grilla').innerHTML = '';
+  for(let i=0; i<4; i++) agregarFilaGrilla();
+}
+
+function agregarFilaGrilla() {
+  const div = document.createElement('div');
+  div.style.display = 'flex'; div.style.gap = '4px'; div.style.marginBottom = '4px';
+  div.innerHTML = `
+    <input type="text" placeholder="Cód" style="width:20%;">
+    <input type="text" placeholder="Detalle" style="width:35%;">
+    <input type="number" placeholder="Costo" style="width:15%;">
+    <input type="number" placeholder="P.Ref" style="width:15%;">
+    <button class="btn btn-green" style="width:15%; padding:5px; margin:5px 0;" onclick="altaFilaGrilla(this)">OK</button>
+  `;
+  document.getElementById('contenedor-grilla').appendChild(div);
+}
+
+async function altaFilaGrilla(btn) {
+  const inputs = btn.parentElement.querySelectorAll('input');
+  const codigo = inputs[0].value.trim();
+  const detalle = inputs[1].value.trim();
+  if (!codigo || !detalle) return alert("Complete código y detalle.");
+
+  await db.productos.put({
+    codigo, detalle,
+    precio_costo: parseFloat(inputs[2].value || 0),
+    precio_ref: parseFloat(inputs[3].value || 0),
+    stock: 0, tipo: 'comestible', foto_path: ''
+  });
+
+  btn.disabled = true;
+  btn.innerText = "✓";
+}
+
+// Copia de Respaldo y Borrado
+async function exportarRespaldo() {
+  const datos = {
+    productos: await db.productos.toArray(),
+    ventas: await db.ventas.toArray(),
+    insumos: await db.insumos.toArray(),
+    recetas: await db.recetas.toArray()
+  };
+  const jsonStr = JSON.stringify(datos);
+  await navigator.clipboard.writeText(jsonStr);
+  alert("Respaldo copiado al portapapeles.");
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(jsonStr)}`, '_blank');
+}
+
+async function restaurarRespaldo() {
+  try {
+    const text = await navigator.clipboard.readText();
+    const datos = JSON.parse(text);
+    if (datos.productos) await db.productos.bulkPut(datos.productos);
+    if (datos.ventas) await db.ventas.bulkPut(datos.ventas);
+    if (datos.insumos) await db.insumos.bulkPut(datos.insumos);
+    if (datos.recetas) await db.recetas.bulkPut(datos.recetas);
+    alert("Datos restaurados correctamente.");
+  } catch (e) {
+    alert("Error al restaurar: " + e.message);
+  }
+}
+
+async function ejecutarBorrado() {
+  const cod = document.getElementById('borrar-codigo').value.trim();
+  if (!cod) return alert("Ingrese un código.");
+  await db.productos.delete(cod);
+  await db.recetas.where('codigo_prod').equals(cod).delete();
+  alert("Producto eliminado.");
+  document.getElementById('borrar-codigo').value = '';
+}

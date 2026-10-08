@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Gestión de Feria</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; background-color: #000; color: #fff; margin: 0; padding: 15px; padding-bottom: 60px; }
+    h2, h3 { text-align: center; margin-top: 5px; }
+    
+    .btn { display: block; width: 100%; padding: 12px; margin: 6px 0; font-size: 15px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; text-align: center; color: #fff; }
+    
+    /* Contenedor del Menú Principal en 2 Columnas */
+    .grid-menu {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    /* Formato Tipo Cubo / Tarjeta para cada opción del menú */
+    .grid-menu .btn {
+      height: 95px;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8px;
+      font-size: 13px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+    }
+
+    .btn-green { background-color: #00b359; }
+    .btn-blue { background-color: #3385ff; }
+    .btn-yellow { background-color: #808000; color: #fff; }
+    .btn-orange { background-color: #cc6600; }
+    .btn-purple { background-color: #800080; }
+    .btn-teal { background-color: #008080; }
+    .btn-red { background-color: #cc0000; }
+    .btn-gray { background-color: #444; }
+    
+    input, select { width: 100%; padding: 10px; margin: 5px 0; background-color: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 15px; }
+    .card { background: #121212; border: 1px solid #333; padding: 10px; border-radius: 6px; margin-bottom: 8px; }
+    .hidden { display: none !important; }
+    
+    .banner-ad { position: fixed; bottom: 0; left: 0; width: 100%; background: #111; color: #00d9ff; text-align: center; padding: 8px; font-size: 12px; font-weight: bold; border-top: 1px solid #333; z-index: 100; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #333; padding: 6px; text-align: left; font-size: 13px; }
+    th { background-color: #222; }
+    .row-even { background-color: #181818; }
+    .row-odd { background-color: #101010; }
+  </style>
+</head>
+<body>
+
+  <!-- PANTALLA 1: PORTADA -->
+  <div id="pantalla-portada">
+    <h2>SISTEMA DE GESTIÓN DE FERIA</h2>
+    <div style="text-align:center; margin: 20px 0;">
+      <img src="foto.jpg" alt="Foto de Portada" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 2px solid #00b359;">
+    </div>
+    <p style="text-align: center; font-size: 16px;">Desarrollado por:<br>a.rubenramirez@gmail.com</p>
+    <button class="btn btn-green" onclick="mostrarPantalla('pantalla-menu')" style="margin-top: 30px;">INGRESAR AL SISTEMA</button>
+  </div>
+
+  <!-- PANTALLA 2: MENÚ PRINCIPAL (CUBOS EN 2 COLUMNAS) -->
+  <div id="pantalla-menu" class="hidden">
+    <h3 id="lbl-menu-titulo">MENÚ PRINCIPAL</h3>
+    
+    <div class="grid-menu">
+      <button class="btn btn-green" onclick="mostrarPantalla('pantalla-venta')">REGISTRAR VENTA</button>
+      <button class="btn btn-blue" onclick="mostrarPantalla('pantalla-reporte')">REPORTE DE VENTAS</button>
+      <button class="btn btn-yellow" onclick="mostrarPantalla('pantalla-consulta')">CONSULTAR STOCK / PRECIOS</button>
+      <button class="btn btn-orange" onclick="mostrarPantalla('pantalla-nuevo')">NUEVO / EDITAR PRODUCTO</button>
+
+      <button class="btn btn-purple hidden" id="btn-insumos" onclick="mostrarPantalla('pantalla-insumos')">GESTIÓN DE INSUMOS</button>
+      <button class="btn btn-purple hidden" id="btn-recetas" onclick="mostrarPantalla('pantalla-recetas')">ESCANDALLO Y CALCULADORA</button>
+      <button class="btn btn-purple" id="btn-grilla" onclick="mostrarPantalla('pantalla-grilla')">CARGA RÁPIDA EN GRILLA</button>
+
+      <button class="btn btn-teal" onclick="mostrarPantalla('pantalla-backup')">COPIA DE RESPALDO</button>
+      <button class="btn btn-red" onclick="mostrarPantalla('pantalla-borrar')">BORRAR PRODUCTO</button>
+    </div>
+
+    <button class="btn btn-gray" id="btn-cambiar-rubro" onclick="cambiarRubro()">Modo actual: Revendedor (Toca para cambiar)</button>
+  </div>
+
+  <!-- PANTALLA 3: REGISTRAR VENTA -->
+  <div id="pantalla-venta" class="hidden">
+    <h3>REGISTRAR VENTA</h3>
+    <input type="text" id="venta-buscar" placeholder="Escriba nombre o código..." oninput="buscarVentaPredictiva(this.value)">
+    <div id="venta-sugerencias"></div>
+
+    <div class="card" style="margin-top: 10px;">
+      <div id="venta-detalle">Detalle: -</div>
+      <div id="venta-costo" style="color:#aaa; font-size:13px;">Costo: $0.00</div>
+      <div id="venta-ref" style="color:#00e676; font-size:14px;">Precio Ref: $0.00 | Stock: 0</div>
+    </div>
+
+    <input type="number" id="venta-precio" placeholder="Precio de Venta Final">
+    <input type="number" id="venta-cant" value="1" placeholder="Cantidad">
+    <button class="btn btn-green" onclick="validarYConfirmarVenta()">CONFIRMAR VENTA</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA 4: REPORTE DE VENTAS -->
+  <div id="pantalla-reporte" class="hidden">
+    <h3>REPORTE DE VENTAS</h3>
+    <input type="date" id="reporte-fecha" onchange="cargarReporteVentas()">
+    <div id="reporte-totales" style="color:#00e676; font-weight:bold; margin: 10px 0; text-align:center;">Vendido: $0.00 | Ganancia: $0.00</div>
+    <div id="reporte-lista"></div>
+    <button class="btn btn-green" onclick="compartirReporteWhatsApp()">COMPARTIR REPORTE (WhatsApp)</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA 5: CONSULTA STOCK -->
+  <div id="pantalla-consulta" class="hidden">
+    <h3>CONSULTA DE STOCK</h3>
+    <input type="text" id="consulta-filtro" placeholder="Filtrar por código o detalle..." oninput="cargarConsultaStock()">
+    <div style="display:flex; gap:5px;">
+      <button class="btn btn-gray" style="font-size:12px;" onclick="cargarConsultaStock('todos')">Todos</button>
+      <button class="btn btn-gray" style="font-size:12px;" onclick="cargarConsultaStock('comestible')">Comestibles</button>
+      <button class="btn btn-gray" style="font-size:12px;" onclick="cargarConsultaStock('no_comestible')">No Comestibles</button>
+    </div>
+    <div id="consulta-tabla"></div>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA 6: NUEVO / EDITAR PRODUCTO -->
+  <div id="pantalla-nuevo" class="hidden">
+    <h3>NUEVO / EDITAR PRODUCTO</h3>
+    <div style="display:flex; gap:5px;">
+      <input type="text" id="prod-codigo" placeholder="Código">
+      <button class="btn btn-blue" style="width:30%; margin:5px 0;" onclick="buscarProductoParaEditar()">🔍 Buscar</button>
+    </div>
+    <input type="text" id="prod-nombre" placeholder="Detalle / Descripción">
+    <input type="number" id="prod-costo" placeholder="Precio Costo ($)">
+    <input type="number" id="prod-ref" placeholder="Precio Referencia ($)">
+    <input type="number" id="prod-stock" placeholder="Stock Inicial">
+    <select id="prod-tipo">
+      <option value="comestible">Comestible</option>
+      <option value="no_comestible">No Comestible</option>
+    </select>
+    <input type="text" id="prod-foto" placeholder="Ruta / URL de Foto.jpg">
+    <div id="prod-estado" style="color:#ffb74d; text-align:center; margin:5px;"></div>
+    <button class="btn btn-green" onclick="guardarProducto()">GUARDAR PRODUCTO</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA 7: GESTIÓN DE INSUMOS -->
+  <div id="pantalla-insumos" class="hidden">
+    <h3>GESTIÓN DE INSUMOS</h3>
+    <input type="text" id="insumo-nombre" placeholder="Nombre (Ej: Harina, Cuero)">
+    <input type="text" id="insumo-unidad" placeholder="Unidad (kg, g, m, un)">
+    <input type="number" id="insumo-costo" placeholder="Costo por unidad ($)">
+    <input type="number" id="insumo-stock" placeholder="Stock disponible">
+    <button class="btn btn-green" onclick="guardarInsumo()">GUARDAR INSUMO</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA 8: RECETAS / ESCANDALLO -->
+  <div id="pantalla-recetas" class="hidden">
+    <h3>ESCANDALLO Y CALCULADORA</h3>
+    <input type="text" id="receta-cod-prod" placeholder="Código de Producto">
+    <div class="card">
+      <select id="receta-select-insumo"></select>
+      <input type="number" id="receta-cant-usada" placeholder="Cantidad usada por unidad">
+      <button class="btn btn-purple" onclick="vincularIngrediente()">Vincular Ingrediente</button>
+    </div>
+    <input type="number" id="receta-lote" value="1" placeholder="Lote a producir">
+    <button class="btn btn-blue" onclick="calcularEscandallo()">CALCULAR COSTO Y FALTANTES</button>
+    <div id="receta-resultado" style="color:#00e676; text-align:center; margin:10px; font-weight:bold;"></div>
+    <button class="btn btn-green" onclick="compartirComprasWhatsApp()">ENVIAR COMPRAS (WhatsApp)</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA 9: CARGA RÁPIDA EN GRILLA -->
+  <div id="pantalla-grilla" class="hidden">
+    <h3>CARGA RÁPIDA EN GRILLA</h3>
+    <div id="contenedor-grilla"></div>
+    <button class="btn btn-green" onclick="agregarFilaGrilla()">+ Agregar Fila</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA 10: COPIA DE RESPALDO -->
+  <div id="pantalla-backup" class="hidden">
+    <h3>RESPALDO DE DATOS</h3>
+    <button class="btn btn-green" onclick="exportarRespaldo()">ENVIAR RESPALDO POR WHATSAPP</button>
+    <button class="btn btn-orange" onclick="restaurarRespaldo()">RESTAURAR DESDE PORTAPAPELES</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA 11: BORRAR PRODUCTO -->
+  <div id="pantalla-borrar" class="hidden">
+    <h3 style="color:#ff5252;">BORRAR PRODUCTO</h3>
+    <input type="text" id="borrar-codigo" placeholder="Código del producto">
+    <button class="btn btn-red" onclick="ejecutarBorrado()">ELIMINAR DEFINITIVAMENTE</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- BANNER PUBLICITARIO -->
+  <div class="banner-ad">
+    📢 ESPACIO PUBLICITARIO / AUSPICIANTES DE LA FERIA
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
