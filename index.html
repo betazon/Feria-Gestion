@@ -10,7 +10,7 @@
   <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, sans-serif; background-color: #000; color: #fff; margin: 0; padding: 15px; padding-bottom: 60px; }
-    h2, h3 { text-align: center; margin-top: 5px; }
+    h2, h3, h4 { text-align: center; margin-top: 5px; }
     
     .btn { display: block; width: 100%; padding: 12px; margin: 6px 0; font-size: 15px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; text-align: center; color: #fff; }
     
@@ -80,7 +80,7 @@
       <button class="btn btn-orange" onclick="mostrarPantalla('pantalla-nuevo')">NUEVO / EDITAR PRODUCTO</button>
 
       <button class="btn btn-purple hidden" id="btn-insumos" onclick="mostrarPantalla('pantalla-insumos')">GESTIÓN DE INSUMOS</button>
-      <button class="btn btn-purple hidden" id="btn-recetas" onclick="mostrarPantalla('pantalla-recetas')">ESCANDALLO Y CALCULADORA</button>
+      <button class="btn btn-purple hidden" id="btn-recetas" onclick="mostrarPantalla('pantalla-recetas')">CALCULADORA</button>
       <button class="btn btn-purple" id="btn-grilla" onclick="mostrarPantalla('pantalla-grilla')">CARGA RÁPIDA EN GRILLA</button>
 
       <button class="btn btn-teal" onclick="mostrarPantalla('pantalla-backup')">COPIA DE RESPALDO</button>
@@ -136,18 +136,23 @@
     <h3>NUEVO / EDITAR PRODUCTO</h3>
     <div style="display:flex; gap:5px;">
       <input type="text" id="prod-codigo" placeholder="Código">
-      <button class="btn btn-blue" style="width:30%; margin:5px 0;" onclick="buscarProductoParaEditar()">🔍 Buscar</button>
+      <button class="btn btn-blue" style="width:35%; margin:5px 0; font-size:12px;" onclick="buscarProductoParaEditar()">🔍 Buscar</button>
     </div>
+
+    <button class="btn btn-purple" style="font-size:12px; padding:8px; margin-bottom:8px;" onclick="importarDesdeEscandallo(true)">
+      ⚡ Traer Costo y P. Ref desde Escandallo
+    </button>
+
     <input type="text" id="prod-nombre" placeholder="Detalle / Descripción">
-    <input type="number" id="prod-costo" placeholder="Precio Costo ($)">
-    <input type="number" id="prod-ref" placeholder="Precio Referencia ($)">
+    <input type="number" step="0.01" id="prod-costo" placeholder="Precio Costo ($)">
+    <input type="number" step="0.01" id="prod-ref" placeholder="Precio Referencia ($)">
     <input type="number" id="prod-stock" placeholder="Stock Inicial">
     <select id="prod-tipo">
       <option value="comestible">Comestible</option>
       <option value="no_comestible">No Comestible</option>
     </select>
     <input type="text" id="prod-foto" placeholder="Ruta / URL de Foto.jpg">
-    <div id="prod-estado" style="color:#ffb74d; text-align:center; margin:5px;"></div>
+    <div id="prod-estado" style="color:#ffb74d; text-align:center; margin:5px; font-size:13px;"></div>
     <button class="btn btn-green" onclick="guardarProducto()">GUARDAR PRODUCTO</button>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
@@ -166,16 +171,28 @@
   <!-- PANTALLA 8: RECETAS / ESCANDALLO -->
   <div id="pantalla-recetas" class="hidden">
     <h3>ESCANDALLO Y CALCULADORA</h3>
-    <input type="text" id="receta-cod-prod" placeholder="Código de Producto">
+    <input type="text" id="receta-cod-prod" placeholder="Código de Producto" oninput="cargarDetalleRecetaRegistrada()">
+    
     <div class="card">
+      <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Vincular Ingrediente a Receta:</h4>
       <select id="receta-select-insumo"></select>
-      <input type="number" id="receta-cant-usada" placeholder="Cantidad usada por unidad">
+      <input type="number" id="receta-cant-usada" placeholder="Cantidad usada por 1 unidad de producto">
       <button class="btn btn-purple" onclick="vincularIngrediente()">Vincular Ingrediente</button>
     </div>
-    <input type="number" id="receta-lote" value="1" placeholder="Lote a producir">
-    <button class="btn btn-blue" onclick="calcularEscandallo()">CALCULAR COSTO Y FALTANTES</button>
-    <div id="receta-resultado" style="color:#00e676; text-align:center; margin:10px; font-weight:bold;"></div>
-    <button class="btn btn-green" onclick="compartirComprasWhatsApp()">ENVIAR COMPRAS (WhatsApp)</button>
+
+    <!-- Lista interactiva de ingredientes vinculados -->
+    <div id="receta-ingredientes-lista" class="card" style="margin-top:5px;"></div>
+
+    <div class="card" style="margin-top:10px;">
+      <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Calculadora de Lote de Producción:</h4>
+      <input type="number" id="receta-lote" value="1" placeholder="Cantidad a producir">
+      <button class="btn btn-blue" onclick="calcularEscandallo()">CALCULAR LISTA DE MATERIALES Y COSTO</button>
+    </div>
+
+    <div id="receta-resultado-tabla"></div>
+    <div id="receta-resultado" style="color:#00e676; text-align:center; margin:10px; font-weight:bold; font-size:15px;"></div>
+    
+    <button class="btn btn-green" onclick="compartirComprasWhatsApp()">ENVIAR COMPRAS FALTANTES (WhatsApp)</button>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 

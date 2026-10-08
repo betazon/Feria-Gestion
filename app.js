@@ -192,6 +192,8 @@ async function cargarConsultaStock(tipo) {
 // Productos (Alta / Edición)
 async function buscarProductoParaEditar() {
   const cod = document.getElementById('prod-codigo').value.trim();
+  if (!cod) return alert("Ingrese un código para buscar.");
+
   const p = await db.productos.get(cod);
   if (p) {
     document.getElementById('prod-nombre').value = p.detalle;
@@ -204,6 +206,39 @@ async function buscarProductoParaEditar() {
   } else {
     document.getElementById('prod-estado').innerText = "Nuevo producto.";
   }
+
+  // Sincroniza costos y referencia desde el escandallo si tiene receta cargada
+  await importarDesdeEscandallo(false);
+}
+
+async function importarDesdeEscandallo(mostrarAlerta = true) {
+  const cod = document.getElementById('prod-codigo').value.trim();
+  if (!cod) {
+    if (mostrarAlerta) alert("Ingrese un código de producto.");
+    return;
+  }
+
+  const componentes = await db.recetas.where('codigo_prod').equals(cod).toArray();
+  if (componentes.length === 0) {
+    if (mostrarAlerta) alert("No hay una receta vinculada a este código.");
+    return;
+  }
+
+  let costoCalculado = 0;
+  for (let c of componentes) {
+    const ins = await db.insumos.get(c.id_insumo);
+    if (ins) {
+      costoCalculado += ins.costo_unitario * c.cantidad_usada;
+    }
+  }
+
+  document.getElementById('prod-costo').value = costoCalculado.toFixed(2);
+  const margen = 2.0; // Multiplicador para precio de referencia (100% de ganancia)
+  const precioRefSugerido = costoCalculado * margen;
+  document.getElementById('prod-ref').value = precioRefSugerido.toFixed(2);
+
+  document.getElementById('prod-estado').innerText = `Valores sincronizados desde Escandallo (Costo: $${costoCalculado.toFixed(2)})`;
+  if (mostrarAlerta) alert("Costo y Precio de Referencia importados con éxito desde la receta.");
 }
 
 async function guardarProducto() {
@@ -239,12 +274,18 @@ async function guardarInsumo() {
 
   alert("Insumo registrado.");
   document.getElementById('insumo-nombre').value = '';
+  document.getElementById('insumo-costo').value = '';
+  document.getElementById('insumo-stock').value = '';
+  cargarOpcionesRecetas();
 }
 
 async function cargarOpcionesRecetas() {
   const insumos = await db.insumos.toArray();
   const sel = document.getElementById('receta-select-insumo');
-  sel.innerHTML = insumos.map(i => `<option value="${i.id}">${i.nombre} (${i.unidad})</option>`).join('');
+  if (sel) {
+    sel.innerHTML = '<option value="">-- Seleccionar Insumo --</option>' + 
+      insumos.map(i => `<option value="${i.id}">${i.nombre} (${i.unidad}) - $${i.costo_unitario}/${i.unidad}</option>`).join('');
+  }
 }
 
 async function vincularIngrediente() {
@@ -252,37 +293,95 @@ async function vincularIngrediente() {
   const idInsumo = parseInt(document.getElementById('receta-select-insumo').value);
   const cantUsada = parseFloat(document.getElementById('receta-cant-usada').value || 0);
 
-  if (!codProd || !idInsumo || cantUsada <= 0) return alert("Complete datos de la receta.");
+  if (!codProd || !idInsumo || cantUsada <= 0) return alert("Complete código de producto, insumo y cantidad.");
+  
   await db.recetas.put({ codigo_prod: codProd, id_insumo: idInsumo, cantidad_usada: cantUsada });
-  alert("Ingrediente vinculado.");
+  alert("Ingrediente vinculado a la receta.");
+  document.getElementById('receta-cant-usada').value = '';
+  cargarDetalleRecetaRegistrada();
+}
+
+async function cargarDetalleRecetaRegistrada() {
+  const codProd = document.getElementById('receta-cod-prod').value.trim();
+  const cont = document.getElementById('receta-ingredientes-lista');
+  if (!cont) return;
+
+  if (!codProd) {
+    cont.innerHTML = '';
+    return;
+  }
+
+  const componentes = await db.recetas.where('codigo_prod').equals(codProd).toArray();
+  if (componentes.length === 0) {
+    cont.innerHTML = '<div style="color:#aaa; font-size:12px; margin-top:5px;">Sin ingredientes cargados para este código.</div>';
+    return;
+  }
+
+  let html = '<table><tr><th>Insumo</th><th>Cant. Base</th><th>Acción</th></tr>';
+  for (let c of componentes) {
+    const ins = await db.insumos.get(c.id_insumo);
+    const nombreInsumo = ins ? ins.nombre : 'Insumo ' + c.id_insumo;
+    const unidad = ins ? ins.unidad : '';
+    html += `<tr>
+      <td>${nombreInsumo}</td>
+      <td>${c.cantidad_usada} ${unidad}</td>
+      <td><button class="btn btn-red" style="padding:2px 6px; font-size:11px;" onclick="eliminarIngredienteReceta('${codProd}', ${c.id_insumo})">X</button></td>
+    </tr>`;
+  }
+  cont.innerHTML = html + '</table>';
+}
+
+async function eliminarIngredienteReceta(codProd, idInsumo) {
+  await db.recetas.where('[codigo_prod+id_insumo]').equals([codProd, idInsumo]).delete();
+  cargarDetalleRecetaRegistrada();
 }
 
 async function calcularEscandallo() {
   const cod = document.getElementById('receta-cod-prod').value.trim();
   const lote = parseInt(document.getElementById('receta-lote').value || 1);
+  if (!cod) return alert("Ingrese un código de producto.");
+
   const componentes = await db.recetas.where('codigo_prod').equals(cod).toArray();
-  
   if (componentes.length === 0) return alert("No hay receta asignada a este código.");
 
   let costoUnit = 0;
   ultimosFaltantesCompras = [];
+  let htmlMateriales = '<h4>Materiales Necesarios para ' + lote + ' unidad(es):</h4><table><tr><th>Insumo</th><th>Requerido</th><th>Subtotal</th></tr>';
 
   for (let c of componentes) {
     const ins = await db.insumos.get(c.id_insumo);
     if (ins) {
+      const cantTotal = c.cantidad_usada * lote;
+      const subtotalInsumo = ins.costo_unitario * cantTotal;
       costoUnit += ins.costo_unitario * c.cantidad_usada;
-      const requerido = c.cantidad_usada * lote;
-      if (ins.stock < requerido) {
-        ultimosFaltantesCompras.push({ nombre: ins.nombre, faltante: requerido - ins.stock, unidad: ins.unidad });
+
+      htmlMateriales += `<tr>
+        <td>${ins.nombre}</td>
+        <td><b>${cantTotal.toFixed(2)} ${ins.unidad}</b></td>
+        <td>$${subtotalInsumo.toFixed(2)}</td>
+      </tr>`;
+
+      if (ins.stock < cantTotal) {
+        ultimosFaltantesCompras.push({ nombre: ins.nombre, faltante: cantTotal - ins.stock, unidad: ins.unidad });
       }
     }
   }
 
-  document.getElementById('receta-resultado').innerText = `Costo Unitario: $${costoUnit.toFixed(2)} | Costo Lote (${lote} un): $${(costoUnit * lote).toFixed(2)}`;
+  htmlMateriales += '</table>';
+  const costoTotalLote = costoUnit * lote;
+
+  document.getElementById('receta-resultado-tabla').innerHTML = htmlMateriales;
+  document.getElementById('receta-resultado').innerText = `Costo Unitario: $${costoUnit.toFixed(2)} | Costo Lote (${lote} un): $${costoTotalLote.toFixed(2)}`;
+  
+  // Actualizar el costo del producto en la BD automáticamente
+  const prodExistente = await db.productos.get(cod);
+  if (prodExistente) {
+    await db.productos.update(cod, { precio_costo: costoUnit });
+  }
 }
 
 function compartirComprasWhatsApp() {
-  if (ultimosFaltantesCompras.length === 0) return alert("No hay faltantes registradas.");
+  if (ultimosFaltantesCompras.length === 0) return alert("No hay faltantes registrados para el lote calculated.");
   let txt = "*COMPRAS DE INSUMOS FALTANTES*\n\n";
   ultimosFaltantesCompras.forEach(f => {
     txt += `• ${f.nombre}: Faltan ${f.faltante.toFixed(2)} ${f.unidad}\n`;
