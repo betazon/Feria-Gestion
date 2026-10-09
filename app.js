@@ -11,6 +11,7 @@ db.version(1).stores({
 let productoSeleccionadoVenta = null;
 let filtroConsultaActual = 'todos';
 let ultimosFaltantesCompras = [];
+let chartVentasInstancia = null;
 
 // Lista de Rubros / Publicidades
 const DICCIONARIO_RUBROS = {
@@ -26,8 +27,8 @@ const DICCIONARIO_RUBROS = {
 function mostrarPantalla(id) {
   const ids = [
     'pantalla-portada', 'pantalla-menu', 'pantalla-venta', 'pantalla-reporte',
-    'pantalla-consulta', 'pantalla-nuevo', 'pantalla-insumos', 'pantalla-recetas',
-    'pantalla-grilla', 'pantalla-backup', 'pantalla-borrar'
+    'pantalla-reporte-general', 'pantalla-consulta', 'pantalla-nuevo', 'pantalla-insumos', 
+    'pantalla-recetas', 'pantalla-grilla', 'pantalla-backup', 'pantalla-borrar'
   ];
 
   ids.forEach(pId => {
@@ -43,6 +44,7 @@ function mostrarPantalla(id) {
     document.getElementById('reporte-fecha').value = new Date().toISOString().split('T')[0];
     cargarReporteVentas();
   }
+  if (id === 'pantalla-reporte-general') actualizarReporteGeneral();
   if (id === 'pantalla-consulta') cargarConsultaStock();
   if (id === 'pantalla-recetas') cargarOpcionesRecetas();
   if (id === 'pantalla-grilla') inicializarGrilla();
@@ -178,7 +180,7 @@ async function validarYConfirmarVenta() {
   productoSeleccionadoVenta = null;
 }
 
-// Reportes
+// Reportes Diarios
 async function cargarReporteVentas() {
   const fechaSel = document.getElementById('reporte-fecha').value;
   const ventas = await db.ventas.toArray();
@@ -205,6 +207,158 @@ function compartirReporteWhatsApp() {
   const fechaSel = document.getElementById('reporte-fecha').value;
   const texto = document.getElementById('reporte-totales').innerText;
   window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(`*REPORTE DE VENTAS - ${fechaSel}*\n${texto}`)}`, '_blank');
+}
+
+// ESTADÍSTICAS GENERALES Y FICHA DE PRODUCTO
+async function actualizarReporteGeneral() {
+  const periodo = document.getElementById('reporte-periodo').value;
+  const ventas = await db.ventas.toArray();
+  const ahora = new Date();
+  let etiquetas = [];
+  let totales = [];
+
+  if (periodo === 'dia') {
+    const hoyStr = ahora.toISOString().split('T')[0];
+    const ventasHoy = ventas.filter(v => v.fecha.startsWith(hoyStr));
+    const horasMap = {};
+    for (let h = 8; h <= 22; h += 2) {
+      const horaLabel = `${h.toString().padStart(2, '0')}:00`;
+      horasMap[horaLabel] = 0;
+    }
+
+    ventasHoy.forEach(v => {
+      const hora = parseInt(v.fecha.substring(11, 13));
+      const bloque = `${(Math.floor(hora / 2) * 2).toString().padStart(2, '0')}:00`;
+      if (horasMap[bloque] !== undefined) {
+        horasMap[bloque] += (v.cantidad * v.precio_venta);
+      }
+    });
+
+    etiquetas = Object.keys(horasMap);
+    totales = Object.values(horasMap);
+
+  } else if (periodo === 'semana') {
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(ahora.getDate() - i);
+      const fechaStr = d.toISOString().split('T')[0];
+      const diaNombre = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' });
+      
+      const totalDia = ventas
+        .filter(v => v.fecha.startsWith(fechaStr))
+        .reduce((sum, v) => sum + (v.cantidad * v.precio_venta), 0);
+
+      etiquetas.push(diaNombre);
+      totales.push(totalDia);
+    }
+  }
+
+  const ctx = document.getElementById('graficoVentas').getContext('2d');
+  if (chartVentasInstancia) chartVentasInstancia.destroy();
+
+  chartVentasInstancia = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: etiquetas,
+      datasets: [{
+        label: 'Ventas ($)',
+        data: totales,
+        borderColor: '#00b359',
+        backgroundColor: 'rgba(0, 179, 89, 0.2)',
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+        y: { ticks: { color: '#ccc' }, grid: { color: '#333' } }
+      }
+    }
+  });
+
+  await cargarStockInsumosReporte();
+}
+
+async function cargarStockInsumosReporte() {
+  const insumos = await db.insumos.toArray();
+  const cont = document.getElementById('reporte-insumos-stock');
+  if (!cont) return;
+
+  if (insumos.length === 0) {
+    cont.innerHTML = '<div style="color:#aaa; font-size:12px;">No hay insumos registrados.</div>';
+    return;
+  }
+
+  let html = '<table><tr><th>Insumo</th><th>Stock</th><th>Unidad</th></tr>';
+  insumos.forEach((ins, i) => {
+    const colorStock = ins.stock <= 5 ? '#ff5252' : '#00e676';
+    html += `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
+      <td>${ins.nombre}</td>
+      <td style="color:${colorStock}; font-weight:bold;">${ins.stock}</td>
+      <td>${ins.unidad}</td>
+    </tr>`;
+  });
+  cont.innerHTML = html + '</table>';
+}
+
+async function buscarProductoFicha(texto) {
+  const cont = document.getElementById('reporte-sugerencias-prod');
+  if (!cont) return;
+  cont.innerHTML = '';
+
+  if (!texto.trim()) return;
+
+  const prods = await db.productos
+    .filter(p => p.detalle.toLowerCase().includes(texto.toLowerCase()) || p.codigo.toLowerCase().includes(texto.toLowerCase()))
+    .limit(4)
+    .toArray();
+
+  prods.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'btn btn-blue';
+    b.style.fontSize = '12px';
+    b.style.margin = '2px 0';
+    b.innerText = `${p.detalle} (${p.codigo})`;
+    b.onclick = () => mostrarFichaProducto(p);
+    cont.appendChild(b);
+  });
+}
+
+async function mostrarFichaProducto(prod) {
+  document.getElementById('reporte-sugerencias-prod').innerHTML = '';
+  document.getElementById('reporte-buscar-prod').value = prod.detalle;
+
+  const imgEl = document.getElementById('ficha-foto');
+  if (prod.foto_path) {
+    imgEl.src = prod.foto_path;
+    imgEl.style.display = 'block';
+  } else {
+    imgEl.style.display = 'none';
+  }
+
+  document.getElementById('ficha-nombre').innerText = `${prod.detalle} [${prod.codigo}]`;
+  document.getElementById('ficha-precios').innerText = `Costo: $${prod.precio_costo.toFixed(2)} | P. Ref: $${prod.precio_ref.toFixed(2)} | Stock: ${prod.stock}`;
+
+  const componentes = await db.recetas.where('codigo_prod').equals(prod.codigo).toArray();
+  const contIng = document.getElementById('ficha-ingredientes');
+
+  if (componentes.length === 0) {
+    contIng.innerHTML = '<div style="color:#aaa; font-size:12px;">Sin ingredientes o materiales vinculados.</div>';
+  } else {
+    let html = '<h6 style="margin:5px 0; text-align:left;">Materiales / Ingredientes:</h6><ul>';
+    for (let c of componentes) {
+      const ins = await db.insumos.get(c.id_insumo);
+      const nombre = ins ? ins.nombre : 'Insumo #' + c.id_insumo;
+      const unidad = ins ? ins.unidad : '';
+      html += `<li>${nombre}: <b>${c.cantidad_usada} ${unidad}</b></li>`;
+    }
+    contIng.innerHTML = html + '</ul>';
+  }
+
+  document.getElementById('reporte-ficha-detalle').classList.remove('hidden');
 }
 
 // Consultas

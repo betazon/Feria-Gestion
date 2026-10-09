@@ -7,10 +7,11 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
   <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, sans-serif; background-color: #000; color: #fff; margin: 0; padding: 15px; padding-bottom: 60px; }
-    h2, h3, h4 { text-align: center; margin-top: 5px; }
+    h2, h3, h4, h5, h6 { text-align: center; margin-top: 5px; }
     
     .btn { display: block; width: 100%; padding: 12px; margin: 6px 0; font-size: 15px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; text-align: center; color: #fff; }
     
@@ -100,7 +101,8 @@
     
     <div class="grid-menu">
       <button class="btn btn-green" onclick="mostrarPantalla('pantalla-venta')">REGISTRAR VENTA</button>
-      <button class="btn btn-blue" onclick="mostrarPantalla('pantalla-reporte')">REPORTE DE VENTAS</button>
+      <button class="btn btn-blue" onclick="mostrarPantalla('pantalla-reporte')">REPORTE DIARIO</button>
+      <button class="btn btn-teal" onclick="mostrarPantalla('pantalla-reporte-general')">ESTADÍSTICAS Y FICHA</button>
       <button class="btn btn-yellow" onclick="mostrarPantalla('pantalla-consulta')">CONSULTAR STOCK / PRECIOS</button>
       <button class="btn btn-orange" onclick="mostrarPantalla('pantalla-nuevo')">NUEVO / EDITAR PRODUCTO</button>
 
@@ -133,13 +135,51 @@
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
-  <!-- PANTALLA 4: REPORTE DE VENTAS -->
+  <!-- PANTALLA 4: REPORTE DIARIO -->
   <div id="pantalla-reporte" class="hidden">
-    <h3>REPORTE DE VENTAS</h3>
+    <h3>REPORTE DE VENTAS DIARIO</h3>
     <input type="date" id="reporte-fecha" onchange="cargarReporteVentas()">
     <div id="reporte-totales" style="color:#00e676; font-weight:bold; margin: 10px 0; text-align:center;">Vendido: $0.00 | Ganancia: $0.00</div>
     <div id="reporte-lista"></div>
     <button class="btn btn-green" onclick="compartirReporteWhatsApp()">COMPARTIR REPORTE (WhatsApp)</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA: REPORTE GENERAL, ESTADÍSTICAS Y FICHA DE PRODUCTO -->
+  <div id="pantalla-reporte-general" class="hidden">
+    <h3>ESTADÍSTICAS Y FICHA TÉCNICA</h3>
+
+    <div class="card">
+      <label style="font-size:13px; color:#ccc;">Período del Gráfico:</label>
+      <select id="reporte-periodo" onchange="actualizarReporteGeneral()">
+        <option value="dia">Hoy (Por Horas)</option>
+        <option value="semana">Últimos 7 Días</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <h4 style="margin:0 0 10px 0; font-size:14px;">Evolución de Ventas ($)</h4>
+      <canvas id="graficoVentas" style="max-height:200px;"></canvas>
+    </div>
+
+    <div class="card">
+      <h4 style="margin:0 0 10px 0; font-size:14px;">Insumos Restantes (Stock)</h4>
+      <div id="reporte-insumos-stock"></div>
+    </div>
+
+    <div class="card">
+      <h4 style="margin:0 0 10px 0; font-size:14px;">Ficha Técnica de Producto</h4>
+      <input type="text" id="reporte-buscar-prod" placeholder="Buscar por nombre o código..." oninput="buscarProductoFicha(this.value)">
+      <div id="reporte-sugerencias-prod"></div>
+      
+      <div id="reporte-ficha-detalle" class="hidden" style="margin-top:10px; text-align:center;">
+        <img id="ficha-foto" src="" style="width:110px; height:110px; object-fit:cover; border-radius:8px; border:1px solid #444; display:none; margin:0 auto 8px auto;">
+        <h5 id="ficha-nombre" style="margin:5px 0; color:#00d9ff;"></h5>
+        <div id="ficha-precios" style="font-size:13px; color:#00e676; margin-bottom:8px;"></div>
+        <div id="ficha-ingredientes" style="text-align:left;"></div>
+      </div>
+    </div>
+
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
@@ -177,7 +217,6 @@
       <option value="no_comestible">No Comestible</option>
     </select>
     
-    <!-- SECCIÓN DE FOTO DE PRODUCTO CON CÁMARA Y GALERÍA -->
     <div class="card" style="text-align:center; margin-top:8px;">
       <label style="font-size:13px; color:#ccc; display:block; margin-bottom:5px;">Foto del Producto:</label>
       
