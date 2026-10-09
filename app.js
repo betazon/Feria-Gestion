@@ -48,10 +48,13 @@ function mostrarPantalla(id) {
   if (id === 'pantalla-grilla') inicializarGrilla();
 }
 
-// Iniciar siempre en la portada y verificar rubro de publicidad
+// Iniciar siempre en la portada y verificar publicidad
 document.addEventListener("DOMContentLoaded", async () => {
   mostrarPantalla('pantalla-portada');
-  await actualizarBannerPublicidad();
+  await CargarPublicidadesLocales();
+  if (navigator.onLine) {
+    await SincronizarPublicidades();
+  }
 });
 
 // Lógica de Menú y Modo (Productor/Revendedor)
@@ -101,24 +104,14 @@ async function seleccionarRubroPublicidad() {
   if (!cod) return alert("Seleccione un rubro.");
 
   await db.configuracion.put({ clave: 'rubro_publicidad', valor: cod });
-  await actualizarBannerPublicidad();
 
   const rubroInfo = DICCIONARIO_RUBROS[cod];
   const mensaje = `Hola, acabo de configurar mi app de feria con el Rubro: Código ${cod} (${rubroInfo.nombre}). Solicitó el banner publicitario correspondiente.`;
   
   window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensaje)}`, '_blank');
   cerrarModalPublicidad();
-}
-
-async function actualizarBannerPublicidad() {
-  const conf = await db.configuracion.get('rubro_publicidad');
-  const bannerEl = document.getElementById('banner-texto');
-  if (!bannerEl) return;
-
-  if (conf && DICCIONARIO_RUBROS[conf.valor]) {
-    bannerEl.innerText = `📢 ${DICCIONARIO_RUBROS[conf.valor].banner}`;
-  } else {
-    bannerEl.innerText = `📢 ESPACIO PUBLICITARIO / AUSPICIANTES DE LA FERIA`;
+  if (navigator.onLine) {
+    SincronizarPublicidades();
   }
 }
 
@@ -235,6 +228,55 @@ async function cargarConsultaStock(tipo) {
   document.getElementById('consulta-tabla').innerHTML = html + '</table>';
 }
 
+// COMPRESIÓN Y PROCESAMIENTO DE FOTOS (Cámara / Galería)
+function procesarYComprimirFoto(event) {
+  const archivo = event.target.files[0];
+  if (!archivo) return;
+
+  const lector = new FileReader();
+  lector.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const maxDim = 300;
+      let ancho = img.width;
+      let alto = img.height;
+
+      if (ancho > alto) {
+        if (ancho > maxDim) {
+          alto = Math.round((alto * maxDim) / ancho);
+          ancho = maxDim;
+        }
+      } else {
+        if (alto > maxDim) {
+          ancho = Math.round((ancho * maxDim) / alto);
+          alto = maxDim;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = ancho;
+      canvas.height = alto;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, ancho, alto);
+
+      const fotoReducidaBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+      document.getElementById('prod-foto-base64').value = fotoReducidaBase64;
+      document.getElementById('prod-foto-preview').src = fotoReducidaBase64;
+      document.getElementById('prod-preview-container').style.display = 'block';
+    };
+    img.src = e.target.result;
+  };
+  lector.readAsDataURL(archivo);
+}
+
+function limpiarFotoFormulario() {
+  document.getElementById('prod-foto-base64').value = '';
+  document.getElementById('prod-foto-preview').src = '';
+  document.getElementById('prod-preview-container').style.display = 'none';
+  document.getElementById('prod-input-foto').value = '';
+}
+
 // Productos (Alta / Edición)
 async function buscarProductoParaEditar() {
   const cod = document.getElementById('prod-codigo').value.trim();
@@ -247,9 +289,18 @@ async function buscarProductoParaEditar() {
     document.getElementById('prod-ref').value = p.precio_ref;
     document.getElementById('prod-stock').value = p.stock;
     document.getElementById('prod-tipo').value = p.tipo || 'comestible';
-    document.getElementById('prod-foto').value = p.foto_path || '';
+    
+    if (p.foto_path) {
+      document.getElementById('prod-foto-base64').value = p.foto_path;
+      document.getElementById('prod-foto-preview').src = p.foto_path;
+      document.getElementById('prod-preview-container').style.display = 'block';
+    } else {
+      limpiarFotoFormulario();
+    }
+
     document.getElementById('prod-estado').innerText = "Producto cargado.";
   } else {
+    limpiarFotoFormulario();
     document.getElementById('prod-estado').innerText = "Nuevo producto.";
   }
 
@@ -297,12 +348,13 @@ async function guardarProducto() {
     precio_ref: parseFloat(document.getElementById('prod-ref').value || 0),
     stock: parseInt(document.getElementById('prod-stock').value || 0),
     tipo: document.getElementById('prod-tipo').value,
-    foto_path: document.getElementById('prod-foto').value.trim()
+    foto_path: document.getElementById('prod-foto-base64').value
   });
 
   alert("Guardado correctamente.");
   document.getElementById('prod-codigo').value = '';
   document.getElementById('prod-nombre').value = '';
+  limpiarFotoFormulario();
 }
 
 // Insumos y Recetas / Calculadora
@@ -333,7 +385,6 @@ async function cargarOpcionesRecetas() {
   }
 }
 
-// BÚSQUEDA PREDICTIVA EN CALCULADORA POR NOMBRE O CÓDIGO
 async function buscarProductoParaReceta(texto) {
   const cont = document.getElementById('receta-sugerencias-prod');
   if (!cont) return;
@@ -537,23 +588,14 @@ async function ejecutarBorrado() {
   document.getElementById('borrar-codigo').value = '';
 }
 
-// URL de donde la app descargará las publicidades actualizadas (ej: GitHub Raw o Gist)
+// PUBLICIDAD Y BANNER ROTATIVO
 const URL_PUBLICIDADES_REMOTA = 'https://raw.githubusercontent.com/betazon/Feria-Gestion/main/publicidades.json';
 
 let anunciosCargados = [];
 let indiceAnuncioActual = 0;
 
-// Escuchar cambios de conexión a internet
 window.addEventListener('online', SincronizarPublicidades);
 
-document.addEventListener("DOMContentLoaded", () => {
-  CargarPublicidadesLocales();
-  if (navigator.onLine) {
-    SincronizarPublicidades();
-  }
-});
-
-// 1. Carga inicial desde IndexedDB o Caché
 async function CargarPublicidadesLocales() {
   const conf = await db.configuracion.get('anuncios_guardados');
   if (conf && conf.valor) {
@@ -562,30 +604,26 @@ async function CargarPublicidadesLocales() {
   }
 }
 
-// 2. Descargar datos nuevos apenas hay conexión a internet
 async function SincronizarPublicidades() {
   try {
     const respuesta = await fetch(URL_PUBLICIDADES_REMOTA + '?t=' + new Date().getTime());
     if (respuesta.ok) {
       const datosRubros = await respuesta.json();
       
-      // Filtramos la publicidad según el rubro activo seleccionado en la app
       const rubroConf = await db.configuracion.get('rubro_publicidad');
       const rubroCod = rubroConf ? rubroConf.valor : '1';
       
       if (datosRubros[rubroCod]) {
         anunciosCargados = datosRubros[rubroCod];
-        // Guardamos en la base de datos local para que funcione offline después
         await db.configuracion.put({ clave: 'anuncios_guardados', valor: JSON.stringify(anunciosCargados) });
         IniciarRotacionBanner();
       }
     }
   } catch (err) {
-    console.log("Modo offline: Usando publicidad almacenada en caché local.");
+    console.log("Modo offline: Usando publicidad almacenada localmente.");
   }
 }
 
-// 3. Rotación de carteles cada 8 segundos
 function IniciarRotacionBanner() {
   if (anunciosCargados.length === 0) return;
   
