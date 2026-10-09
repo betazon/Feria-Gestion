@@ -28,7 +28,7 @@ function mostrarPantalla(id) {
   const ids = [
     'pantalla-portada', 'pantalla-menu', 'pantalla-venta', 'pantalla-reporte',
     'pantalla-reporte-general', 'pantalla-consulta', 'pantalla-nuevo', 'pantalla-insumos', 
-    'pantalla-recetas', 'pantalla-grilla', 'pantalla-backup', 'pantalla-borrar'
+    'pantalla-recetas', 'pantalla-calculadora-lote', 'pantalla-grilla', 'pantalla-backup', 'pantalla-borrar'
   ];
 
   ids.forEach(pId => {
@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Lógica de Menú y Modo (Productor/Revendedor)
 async function obtenerRubro() {
   const conf = await db.configuracion.get('rubro');
-  return conf ? conf.valor : 'revendedor';
+  return conf ? conf.valor : 'productor';
 }
 
 async function cambiarRubro() {
@@ -72,23 +72,41 @@ async function cambiarRubro() {
   cargarMenu();
 }
 
+// Ajustar el menú guiado según el modo activo (Productor / Revendedor)
 async function cargarMenu() {
   const rubro = await obtenerRubro();
   document.getElementById('lbl-menu-titulo').innerText = `MENÚ PRINCIPAL (${rubro.toUpperCase()})`;
-  document.getElementById('btn-cambiar-rubro').innerText = `Modo actual: ${rubro.charAt(0).toUpperCase() + rubro.slice(1)} (Toca para cambiar)`;
+  document.getElementById('btn-cambiar-rubro').innerText = `Modo activo: ${rubro.charAt(0).toUpperCase() + rubro.slice(1)} (Toca para cambiar)`;
   
-  const btnInsumos = document.getElementById('btn-insumos');
-  const btnRecetas = document.getElementById('btn-recetas');
-  const btnGrilla = document.getElementById('btn-grilla');
+  const seccionProductor = document.getElementById('seccion-pasos-productor');
+  const seccionGrilla = document.getElementById('seccion-grilla-revendedor');
+  const seccionCalcExtra = document.getElementById('seccion-calculadora-extra');
+  const numPasoProd = document.getElementById('num-paso-producto');
+  const numPasoVenta = document.getElementById('num-paso-venta');
 
   if (rubro === 'productor') {
-    if (btnInsumos) btnInsumos.classList.remove('hidden');
-    if (btnRecetas) btnRecetas.classList.remove('hidden');
-    if (btnGrilla) btnGrilla.classList.add('hidden');
+    if (seccionProductor) seccionProductor.classList.remove('hidden');
+    if (seccionGrilla) seccionGrilla.classList.add('hidden');
+    if (seccionCalcExtra) seccionCalcExtra.classList.remove('hidden');
+    if (numPasoProd) numPasoProd.innerText = "3️⃣";
+    if (numPasoVenta) numPasoVenta.innerText = "4️⃣";
   } else {
-    if (btnInsumos) btnInsumos.classList.add('hidden');
-    if (btnRecetas) btnRecetas.classList.add('hidden');
-    if (btnGrilla) btnGrilla.classList.remove('hidden');
+    if (seccionProductor) seccionProductor.classList.add('hidden');
+    if (seccionGrilla) seccionGrilla.classList.remove('hidden');
+    if (seccionCalcExtra) seccionCalcExtra.classList.add('hidden');
+    if (numPasoProd) numPasoProd.innerText = "1️⃣";
+    if (numPasoVenta) numPasoVenta.innerText = "2️⃣";
+  }
+}
+
+// Validar que haya insumos antes de ir a armar la receta
+async function validarYIrARecetas() {
+  const cantidadInsumos = await db.insumos.count();
+  if (cantidadInsumos === 0) {
+    alert("⚠️ ¡Atención!\n\nPrimero debes cargar tus insumos en el PASO 1 (Harina, Cuero, Hilos, etc.) antes de armar la receta.");
+    mostrarPantalla('pantalla-insumos');
+  } else {
+    mostrarPantalla('pantalla-recetas');
   }
 }
 
@@ -487,7 +505,7 @@ async function importarDesdeEscandallo(mostrarAlerta = true) {
   const precioRefSugerido = costoCalculado * margen;
   document.getElementById('prod-ref').value = precioRefSugerido.toFixed(2);
 
-  document.getElementById('prod-estado').innerText = `Valores sincronizados desde Escandallo (Costo: $${costoCalculado.toFixed(2)})`;
+  document.getElementById('prod-estado').innerText = `Valores sincronizados desde la Receta (Costo: $${costoCalculado.toFixed(2)})`;
   if (mostrarAlerta) alert("Costo y Precio de Referencia importados con éxito desde la receta.");
 }
 
@@ -569,6 +587,34 @@ function seleccionarProductoParaReceta(p) {
   cargarDetalleRecetaRegistrada();
 }
 
+// Búsqueda específica para la pantalla separada de Calculadora de Lotes
+async function buscarProductoParaCalculadoraLote(texto) {
+  const cont = document.getElementById('calc-sugerencias-prod');
+  if (!cont) return;
+  cont.innerHTML = '';
+
+  if (!texto.trim()) return;
+
+  const prods = await db.productos
+    .filter(p => p.detalle.toLowerCase().includes(texto.toLowerCase()) || p.codigo.toLowerCase().includes(texto.toLowerCase()))
+    .limit(4)
+    .toArray();
+
+  prods.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'btn btn-blue';
+    b.style.fontSize = '12px';
+    b.style.margin = '2px 0';
+    b.innerText = `${p.detalle} (Cód: ${p.codigo})`;
+    b.onclick = () => {
+      document.getElementById('calc-sugerencias-prod').innerHTML = '';
+      document.getElementById('calc-buscar-prod').value = p.detalle;
+      document.getElementById('calc-cod-prod').value = p.codigo;
+    };
+    cont.appendChild(b);
+  });
+}
+
 async function vincularIngrediente() {
   const codProd = document.getElementById('receta-cod-prod').value.trim();
   const idInsumo = parseInt(document.getElementById('receta-select-insumo').value);
@@ -577,7 +623,7 @@ async function vincularIngrediente() {
   if (!codProd || !idInsumo || cantUsada <= 0) return alert("Complete código de producto, insumo y cantidad.");
   
   await db.recetas.put({ codigo_prod: codProd, id_insumo: idInsumo, cantidad_usada: cantUsada });
-  alert("Ingrediente vinculado a la receta.");
+  alert("Insumo vinculado a la receta.");
   document.getElementById('receta-cant-usada').value = '';
   cargarDetalleRecetaRegistrada();
 }
@@ -594,7 +640,7 @@ async function cargarDetalleRecetaRegistrada() {
 
   const componentes = await db.recetas.where('codigo_prod').equals(codProd).toArray();
   if (componentes.length === 0) {
-    cont.innerHTML = '<div style="color:#aaa; font-size:12px; margin-top:5px;">Sin ingredientes cargados para este código.</div>';
+    cont.innerHTML = '<div style="color:#aaa; font-size:12px; margin-top:5px;">Sin insumos cargados para este producto.</div>';
     return;
   }
 
@@ -618,12 +664,12 @@ async function eliminarIngredienteReceta(codProd, idInsumo) {
 }
 
 async function calcularEscandallo() {
-  const cod = document.getElementById('receta-cod-prod').value.trim();
+  const cod = document.getElementById('calc-cod-prod').value.trim() || document.getElementById('receta-cod-prod').value.trim();
   const lote = parseInt(document.getElementById('receta-lote').value || 1);
   if (!cod) return alert("Ingrese un código de producto.");
 
   const componentes = await db.recetas.where('codigo_prod').equals(cod).toArray();
-  if (componentes.length === 0) return alert("No hay receta asignada a este código.");
+  if (componentes.length === 0) return alert("No hay una receta o insumos asignados a este código.");
 
   let costoUnit = 0;
   ultimosFaltantesCompras = [];

@@ -95,26 +95,87 @@
     <button class="btn btn-teal" onclick="abrirModalPublicidad()" style="font-size:12px;">⚙️ Configurar Rubro / Publicidad</button>
   </div>
 
-  <!-- PANTALLA 2: MENÚ PRINCIPAL -->
+  <!-- PANTALLA 2: MENÚ PRINCIPAL GUIADO -->
   <div id="pantalla-menu" class="hidden">
     <h3 id="lbl-menu-titulo">MENÚ PRINCIPAL</h3>
     
-    <div class="grid-menu">
-      <button class="btn btn-green" onclick="mostrarPantalla('pantalla-venta')">REGISTRAR VENTA</button>
-      <button class="btn btn-blue" onclick="mostrarPantalla('pantalla-reporte')">REPORTE DIARIO</button>
-      <button class="btn btn-teal" onclick="mostrarPantalla('pantalla-reporte-general')">ESTADÍSTICAS Y FICHA</button>
-      <button class="btn btn-yellow" onclick="mostrarPantalla('pantalla-consulta')">CONSULTAR STOCK / PRECIOS</button>
-      <button class="btn btn-orange" onclick="mostrarPantalla('pantalla-nuevo')">NUEVO / EDITAR PRODUCTO</button>
-
-      <button class="btn btn-purple hidden" id="btn-insumos" onclick="mostrarPantalla('pantalla-insumos')">GESTIÓN DE INSUMOS</button>
-      <button class="btn btn-purple hidden" id="btn-recetas" onclick="mostrarPantalla('pantalla-recetas')">CALCULADORA</button>
-      <button class="btn btn-purple" id="btn-grilla" onclick="mostrarPantalla('pantalla-grilla')">CARGA RÁPIDA EN GRILLA</button>
-
-      <button class="btn btn-teal" onclick="mostrarPantalla('pantalla-backup')">COPIA DE RESPALDO</button>
-      <button class="btn btn-red" onclick="mostrarPantalla('pantalla-borrar')">BORRAR PRODUCTO</button>
+    <div style="background-color: #1a1a1a; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #00b359;">
+      <p style="margin: 0; font-size: 13px; color: #ccc;">
+        <b>💡 ¿Cómo empezar?</b> Seguí el orden de los pasos (1 ➔ 2 ➔ 3 ➔ 4) para armar tus productos y empezar a vender sin errores.
+      </p>
     </div>
 
-    <button class="btn btn-gray" id="btn-cambiar-rubro" onclick="cambiarRubro()">Modo actual: Revendedor (Toca para cambiar)</button>
+    <!-- SECCIÓN PRODUCTOR (PASOS 1 Y 2) -->
+    <div id="seccion-pasos-productor">
+      <!-- PASO 1 -->
+      <div class="card" style="border-left: 4px solid #800080; display:flex; align-items:center; gap:10px;">
+        <div style="font-size:24px; font-weight:bold; color:#800080; width:30px; text-align:center;">1️⃣</div>
+        <div style="flex:1;">
+          <button class="btn btn-purple" style="margin:0; text-align:left; padding:8px 12px; font-size:14px;" onclick="mostrarPantalla('pantalla-insumos')">📦 PASO 1: CARGAR INSUMOS</button>
+          <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;">Cargá tus materias primas primero (Ej: Harina, Cuero, Hilos).</span>
+        </div>
+        <div style="font-size:18px; color:#aaa;">➔</div>
+      </div>
+
+      <!-- PASO 2 -->
+      <div class="card" style="border-left: 4px solid #800080; display:flex; align-items:center; gap:10px;">
+        <div style="font-size:24px; font-weight:bold; color:#800080; width:30px; text-align:center;">2️⃣</div>
+        <div style="flex:1;">
+          <button class="btn btn-purple" style="margin:0; text-align:left; padding:8px 12px; font-size:14px;" onclick="validarYIrARecetas()">📜 PASO 2: FICHA TÉCNICA Y RECETA</button>
+          <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;">Asociá los insumos al producto para calcular su costo unitario.</span>
+        </div>
+        <div style="font-size:18px; color:#aaa;">➔</div>
+      </div>
+    </div>
+
+    <!-- PASO 3 (CREAR PRODUCTO) -->
+    <div class="card" style="border-left: 4px solid #cc6600; display:flex; align-items:center; gap:10px;">
+      <div style="font-size:24px; font-weight:bold; color:#cc6600; width:30px; text-align:center;" id="num-paso-producto">3️⃣</div>
+      <div style="flex:1;">
+        <button class="btn btn-orange" style="margin:0; text-align:left; padding:8px 12px; font-size:14px;" id="btn-menu-producto" onclick="mostrarPantalla('pantalla-nuevo')">📝 PASO 3: GUARDAR PRODUCTO Y FOTO</button>
+        <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;" id="lbl-desc-producto">Poné el nombre, precio final de venta, stock y sacale una foto.</span>
+      </div>
+      <div style="font-size:18px; color:#aaa;">➔</div>
+    </div>
+
+    <!-- CARGA RÁPIDA SOLO PARA REVENDEDOR -->
+    <div id="seccion-grilla-revendedor" class="card hidden" style="border-left: 4px solid #800080; display:flex; align-items:center; gap:10px;">
+      <div style="font-size:24px; font-weight:bold; color:#800080; width:30px; text-align:center;">⚡</div>
+      <div style="flex:1;">
+        <button class="btn btn-purple" style="margin:0; text-align:left; padding:8px 12px; font-size:14px;" onclick="mostrarPantalla('pantalla-grilla')">CARGA RÁPIDA EN GRILLA</button>
+        <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;">Cargá varios productos rápidamente si no fabricás lo que vendés.</span>
+      </div>
+    </div>
+
+    <!-- PASO 4 (REGISTRAR VENTA) -->
+    <div class="card" style="border-left: 4px solid #00b359; display:flex; align-items:center; gap:10px; margin-top:10px;">
+      <div style="font-size:24px; font-weight:bold; color:#00b359; width:30px; text-align:center;" id="num-paso-venta">4️⃣</div>
+      <div style="flex:1;">
+        <button class="btn btn-green" style="margin:0; text-align:left; padding:8px 12px; font-size:14px;" onclick="mostrarPantalla('pantalla-venta')">💰 PASO 4: REGISTRAR VENTA EN FERIA</button>
+        <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;">Usá este botón para cobrarle al cliente durante la feria.</span>
+      </div>
+    </div>
+
+    <!-- HERRAMIENTA EXTRA: CALCULADORA DE PRESUPUESTOS -->
+    <div id="seccion-calculadora-extra" class="card" style="border-left: 4px solid #3385ff; display:flex; align-items:center; gap:10px; margin-top:10px;">
+      <div style="font-size:24px; font-weight:bold; color:#3385ff; width:30px; text-align:center;">🧮</div>
+      <div style="flex:1;">
+        <button class="btn btn-blue" style="margin:0; text-align:left; padding:8px 12px; font-size:14px;" onclick="mostrarPantalla('pantalla-calculadora-lote')">CALCULADORA DE LOTE Y COMPRAS</button>
+        <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;">Calculá insumos necesarios para fabricar una cantidad x de productos.</span>
+      </div>
+    </div>
+
+    <!-- SECCIÓN DE CONSULTAS Y REPORTES -->
+    <h4 style="margin:15px 0 5px 0; text-align:left; font-size:13px; color:#ccc;">📊 REPORTES Y CONSULTAS:</h4>
+    <div class="grid-menu" style="grid-template-columns: 1fr 1fr; gap:8px;">
+      <button class="btn btn-blue" style="height:auto; padding:10px; font-size:12px;" onclick="mostrarPantalla('pantalla-reporte')">📋 Reporte Diario</button>
+      <button class="btn btn-teal" style="height:auto; padding:10px; font-size:12px;" onclick="mostrarPantalla('pantalla-reporte-general')">📈 Estadísticas y Ficha</button>
+      <button class="btn btn-yellow" style="height:auto; padding:10px; font-size:12px;" onclick="mostrarPantalla('pantalla-consulta')">🔍 Consultar Stock</button>
+      <button class="btn btn-teal" style="height:auto; padding:10px; font-size:12px;" onclick="mostrarPantalla('pantalla-backup')">💾 Copia Respaldo</button>
+    </div>
+
+    <button class="btn btn-red" style="font-size:12px; margin-top:10px;" onclick="mostrarPantalla('pantalla-borrar')">🗑️ Borrar un Producto</button>
+    <button class="btn btn-gray" id="btn-cambiar-rubro" onclick="cambiarRubro()" style="margin-top:15px; font-size:12px;">Modo activo: Productor (Toca para cambiar)</button>
   </div>
 
   <!-- PANTALLA 3: REGISTRAR VENTA -->
@@ -205,7 +266,7 @@
     </div>
 
     <button class="btn btn-purple" style="font-size:12px; padding:8px; margin-bottom:8px;" onclick="importarDesdeEscandallo(true)">
-      ⚡ Traer Costo y P. Ref desde Escandallo
+      ⚡ Traer Costo Calculado de la Receta
     </button>
 
     <input type="text" id="prod-nombre" placeholder="Detalle / Descripción">
@@ -249,9 +310,9 @@
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
-  <!-- PANTALLA 8: RECETAS / CALCULADORA -->
+  <!-- PANTALLA 8: FICHA TÉCNICA Y VINCULACIÓN DE INSUMOS (PASO 2) -->
   <div id="pantalla-recetas" class="hidden">
-    <h3>ESCANDALLO Y CALCULADORA</h3>
+    <h3>FICHA TÉCNICA Y RECETA</h3>
     
     <label style="font-size: 13px; color: #ccc;">Buscar producto por nombre o código:</label>
     <input type="text" id="receta-buscar-prod" placeholder="Escriba detalle o código..." oninput="buscarProductoParaReceta(this.value)">
@@ -260,24 +321,38 @@
     <input type="text" id="receta-cod-prod" placeholder="Código de Producto Seleccionado / Nuevo" oninput="cargarDetalleRecetaRegistrada()" style="margin-top: 8px;">
     
     <div class="card">
-      <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Vincular Ingrediente a Receta:</h4>
+      <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Asociar Insumo a la Receta:</h4>
       <select id="receta-select-insumo"></select>
       <input type="number" step="0.01" id="receta-cant-usada" placeholder="Cantidad usada por 1 unidad de producto">
-      <button class="btn btn-purple" onclick="vincularIngrediente()">Vincular Ingrediente</button>
+      <button class="btn btn-purple" onclick="vincularIngrediente()">Vincular Insumo a la Receta</button>
     </div>
 
     <div id="receta-ingredientes-lista" class="card" style="margin-top:5px;"></div>
+    
+    <button class="btn btn-orange" style="margin-top:10px;" onclick="mostrarPantalla('pantalla-nuevo')">CONTINUAR AL PASO 3: GUARDAR PRODUCTO ➔</button>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA EXCLUSIVA: CALCULADORA DE LOTE DE PRODUCCIÓN Y PRESUPUESTOS -->
+  <div id="pantalla-calculadora-lote" class="hidden">
+    <h3>CALCULADORA DE LOTE Y COMPRAS</h3>
+    
+    <label style="font-size: 13px; color: #ccc;">Buscar producto por nombre o código:</label>
+    <input type="text" id="calc-buscar-prod" placeholder="Escriba detalle o código..." oninput="buscarProductoParaCalculadoraLote(this.value)">
+    <div id="calc-sugerencias-prod"></div>
+
+    <input type="text" id="calc-cod-prod" placeholder="Código del Producto" style="margin-top: 8px;">
 
     <div class="card" style="margin-top:10px;">
-      <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Calculadora de Lote de Producción:</h4>
-      <input type="number" id="receta-lote" value="1" placeholder="Cantidad a producir">
-      <button class="btn btn-blue" onclick="calcularEscandallo()">CALCULAR LISTA DE MATERIALES Y COSTO</button>
+      <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Cantidad que querés fabricar:</h4>
+      <input type="number" id="receta-lote" value="1" placeholder="Cantidad a producir (ej: 10, 50)">
+      <button class="btn btn-blue" onclick="calcularEscandallo()">CALCULAR PRESUPUESTO Y MATERIALES</button>
     </div>
 
     <div id="receta-resultado-tabla"></div>
     <div id="receta-resultado" style="color:#00e676; text-align:center; margin:10px; font-weight:bold; font-size:15px;"></div>
     
-    <button class="btn btn-green" onclick="compartirComprasWhatsApp()">ENVIAR COMPRAS FALTANTES (WhatsApp)</button>
+    <button class="btn btn-green" onclick="compartirComprasWhatsApp()">ENVIAR COMPRAS FALTANTES POR WHATSAPP</button>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
