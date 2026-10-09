@@ -536,3 +536,72 @@ async function ejecutarBorrado() {
   alert("Producto eliminado.");
   document.getElementById('borrar-codigo').value = '';
 }
+
+// URL de donde la app descargará las publicidades actualizadas (ej: GitHub Raw o Gist)
+const URL_PUBLICIDADES_REMOTA = 'https://raw.githubusercontent.com/betazon/Feria-Gestion/main/publicidades.json';
+
+let anunciosCargados = [];
+let indiceAnuncioActual = 0;
+
+// Escuchar cambios de conexión a internet
+window.addEventListener('online', SincronizarPublicidades);
+
+document.addEventListener("DOMContentLoaded", () => {
+  CargarPublicidadesLocales();
+  if (navigator.onLine) {
+    SincronizarPublicidades();
+  }
+});
+
+// 1. Carga inicial desde IndexedDB o Caché
+async function CargarPublicidadesLocales() {
+  const conf = await db.configuracion.get('anuncios_guardados');
+  if (conf && conf.valor) {
+    anunciosCargados = JSON.parse(conf.valor);
+    IniciarRotacionBanner();
+  }
+}
+
+// 2. Descargar datos nuevos apenas hay conexión a internet
+async function SincronizarPublicidades() {
+  try {
+    const respuesta = await fetch(URL_PUBLICIDADES_REMOTA + '?t=' + new Date().getTime());
+    if (respuesta.ok) {
+      const datosRubros = await respuesta.json();
+      
+      // Filtramos la publicidad según el rubro activo seleccionado en la app
+      const rubroConf = await db.configuracion.get('rubro_publicidad');
+      const rubroCod = rubroConf ? rubroConf.valor : '1';
+      
+      if (datosRubros[rubroCod]) {
+        anunciosCargados = datosRubros[rubroCod];
+        // Guardamos en la base de datos local para que funcione offline después
+        await db.configuracion.put({ clave: 'anuncios_guardados', valor: JSON.stringify(anunciosCargados) });
+        IniciarRotacionBanner();
+      }
+    }
+  } catch (err) {
+    console.log("Modo offline: Usando publicidad almacenada en caché local.");
+  }
+}
+
+// 3. Rotación de carteles cada 8 segundos
+function IniciarRotacionBanner() {
+  if (anunciosCargados.length === 0) return;
+  
+  MostrarSiguienteAnuncio();
+  setInterval(() => {
+    MostrarSiguienteAnuncio();
+  }, 8000);
+}
+
+function MostrarSiguienteAnuncio() {
+  const anuncio = anunciosCargados[indiceAnuncioActual];
+  const bannerEl = document.getElementById('banner-texto');
+  
+  if (bannerEl && anuncio) {
+    bannerEl.innerText = `🏪 ${anuncio.negocio} | 🏷️ ${anuncio.oferta} | 📞 ${anuncio.contacto}`;
+  }
+
+  indiceAnuncioActual = (indiceAnuncioActual + 1) % anunciosCargados.length;
+}

@@ -248,9 +248,38 @@
   </div>
 
   <!-- BANNER PUBLICITARIO EN PIE DE PÁGINA -->
-  <div class="banner-ad" id="banner-ad-footer">
-    <span id="banner-texto">📢 ESPACIO PUBLICITARIO / AUSPICIANTES DE LA FERIA</span>
+  <!-- BANNER PUBLICITARIO DINÁMICO FLOTANTE -->
+<div id="banner-ad-footer" class="banner-ad">
+  <div class="banner-contenido" id="banner-contenido">
+    <span class="ticker-text" id="banner-texto">📢 Cargando publicidad de la feria...</span>
   </div>
+</div>
+
+<style>
+  .banner-ad {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #111;
+    color: #00d9ff;
+    border-top: 2px solid #00b359;
+    padding: 6px 10px;
+    z-index: 1000;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .ticker-text {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: bold;
+    animation: moverBanner 12s linear infinite;
+  }
+  @keyframes moverBanner {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+  }
+</style>
 
   <script src="app.js"></script>
 </body>
