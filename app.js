@@ -82,20 +82,17 @@ async function cargarMenu() {
   const seccionGrilla = document.getElementById('seccion-grilla-revendedor');
   const seccionCalcExtra = document.getElementById('seccion-calculadora-extra');
   const numPasoProd = document.getElementById('num-paso-producto');
-  const numPasoVenta = document.getElementById('num-paso-venta');
 
   if (rubro === 'productor') {
     if (seccionProductor) seccionProductor.classList.remove('hidden');
     if (seccionGrilla) seccionGrilla.classList.add('hidden');
     if (seccionCalcExtra) seccionCalcExtra.classList.remove('hidden');
     if (numPasoProd) numPasoProd.innerText = "3️⃣";
-    if (numPasoVenta) numPasoVenta.innerText = "4️⃣";
   } else {
     if (seccionProductor) seccionProductor.classList.add('hidden');
     if (seccionGrilla) seccionGrilla.classList.remove('hidden');
     if (seccionCalcExtra) seccionCalcExtra.classList.add('hidden');
     if (numPasoProd) numPasoProd.innerText = "1️⃣";
-    if (numPasoVenta) numPasoVenta.innerText = "2️⃣";
   }
 }
 
@@ -379,7 +376,7 @@ async function mostrarFichaProducto(prod) {
   document.getElementById('reporte-ficha-detalle').classList.remove('hidden');
 }
 
-// Consultas
+// CONSULTA DE CATÁLOGO Y STOCK (CON TARJETAS VISUALES Y VENTA DIRECTA)
 async function cargarConsultaStock(tipo) {
   if (tipo) filtroConsultaActual = tipo;
   const filtroTxt = document.getElementById('consulta-filtro').value.toLowerCase();
@@ -391,13 +388,70 @@ async function cargarConsultaStock(tipo) {
     return coincideTxt && coincideTipo;
   });
 
-  let html = '<table><tr><th>Cód</th><th>Detalle</th><th>Costo</th><th>P.Ref</th><th>Stk</th></tr>';
-  prods.forEach((p, i) => {
-    html += `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
-      <td><b>${p.codigo}</b></td><td>${p.detalle}</td><td>$${p.precio_costo.toFixed(2)}</td><td style="color:#00e676;">$${p.precio_ref.toFixed(2)}</td><td style="color:#ffb74d;">${p.stock}</td>
-    </tr>`;
-  });
-  document.getElementById('consulta-tabla').innerHTML = html + '</table>';
+  const contenedor = document.getElementById('consulta-tarjetas-container');
+  if (!contenedor) return;
+
+  if (prods.length === 0) {
+    contenedor.innerHTML = '<div class="card" style="text-align:center; color:#aaa;">No se encontraron productos.</div>';
+    return;
+  }
+
+  let html = '';
+
+  for (let p of prods) {
+    const componentes = await db.recetas.where('codigo_prod').equals(p.codigo).toArray();
+    let listaIngredientesTxt = 'Sin insumos vinculados';
+    
+    if (componentes.length > 0) {
+      let partes = [];
+      for (let c of componentes) {
+        const ins = await db.insumos.get(c.id_insumo);
+        const nombreIns = ins ? ins.nombre : 'Insumo';
+        const unidadIns = ins ? ins.unidad : '';
+        partes.push(`${c.cantidad_usada} ${unidadIns} de ${nombreIns}`);
+      }
+      listaIngredientesTxt = partes.join(' • ');
+    }
+
+    const fotoHtml = p.foto_path 
+      ? `<img src="${p.foto_path}" style="width:70px; height:70px; object-fit:cover; border-radius:6px; border:1px solid #444; flex-shrink:0;">`
+      : `<div style="width:70px; height:70px; background:#222; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#777; flex-shrink:0;">Sin Foto</div>`;
+
+    html += `
+      <div class="card" style="margin-bottom: 10px; border-left: 4px solid #00b359;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          ${fotoHtml}
+          <div style="flex:1; overflow:hidden;">
+            <h4 style="margin:0 0 3px 0; font-size:14px; color:#00d9ff; text-align:left;">${p.detalle}</h4>
+            <div style="font-size:11px; color:#aaa; margin-bottom:4px;">Cód: <b>${p.codigo}</b> | Stock: <b style="color:#ffb74d;">${p.stock}</b></div>
+            
+            <div style="display:flex; gap:8px; font-size:12px; margin-bottom:4px; flex-wrap:wrap;">
+              <span style="background:#222; padding:2px 6px; border-radius:4px; border:1px solid #444;">Costo: <b>$${p.precio_costo.toFixed(2)}</b></span>
+              <span style="background:#112a1a; padding:2px 6px; border-radius:4px; border:1px solid #00b359; color:#00e676;">Precio Ref: <b>$${p.precio_ref.toFixed(2)}</b></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:11px; color:#ccc; background:#1a1a1a; padding:6px; border-radius:4px; margin-top:8px; text-align:left;">
+          📜 <b>Ingredientes / Materiales:</b> ${listaIngredientesTxt}
+        </div>
+
+        <button class="btn btn-green" style="margin-top:8px; padding:6px; font-size:12px;" onclick="prepararVentaDirectaDesdeCatalogo('${p.codigo}')">
+          💰 Registrar Venta de este Producto
+        </button>
+      </div>
+    `;
+  }
+
+  contenedor.innerHTML = html;
+}
+
+async function prepararVentaDirectaDesdeCatalogo(codigoProd) {
+  const p = await db.productos.get(codigoProd);
+  if (!p) return;
+  
+  mostrarPantalla('pantalla-venta');
+  seleccionarProductoVenta(p);
 }
 
 // COMPRESIÓN Y PROCESAMIENTO DE FOTOS (Cámara / Galería)
@@ -479,367 +533,4 @@ async function buscarProductoParaEditar() {
   await importarDesdeEscandallo(false);
 }
 
-async function importarDesdeEscandallo(mostrarAlerta = true) {
-  const cod = document.getElementById('prod-codigo').value.trim();
-  if (!cod) {
-    if (mostrarAlerta) alert("Ingrese un código de producto.");
-    return;
-  }
-
-  const componentes = await db.recetas.where('codigo_prod').equals(cod).toArray();
-  if (componentes.length === 0) {
-    if (mostrarAlerta) alert("No hay una receta vinculada a este código.");
-    return;
-  }
-
-  let costoCalculado = 0;
-  for (let c of componentes) {
-    const ins = await db.insumos.get(c.id_insumo);
-    if (ins) {
-      costoCalculado += ins.costo_unitario * c.cantidad_usada;
-    }
-  }
-
-  document.getElementById('prod-costo').value = costoCalculado.toFixed(2);
-  const margen = 2.0; 
-  const precioRefSugerido = costoCalculado * margen;
-  document.getElementById('prod-ref').value = precioRefSugerido.toFixed(2);
-
-  document.getElementById('prod-estado').innerText = `Valores sincronizados desde la Receta (Costo: $${costoCalculado.toFixed(2)})`;
-  if (mostrarAlerta) alert("Costo y Precio de Referencia importados con éxito desde la receta.");
-}
-
-async function guardarProducto() {
-  const codigo = document.getElementById('prod-codigo').value.trim();
-  const detalle = document.getElementById('prod-nombre').value.trim();
-  if (!codigo || !detalle) return alert("Complete código y detalle.");
-
-  await db.productos.put({
-    codigo, detalle,
-    precio_costo: parseFloat(document.getElementById('prod-costo').value || 0),
-    precio_ref: parseFloat(document.getElementById('prod-ref').value || 0),
-    stock: parseInt(document.getElementById('prod-stock').value || 0),
-    tipo: document.getElementById('prod-tipo').value,
-    foto_path: document.getElementById('prod-foto-base64').value
-  });
-
-  alert("Guardado correctamente.");
-  document.getElementById('prod-codigo').value = '';
-  document.getElementById('prod-nombre').value = '';
-  limpiarFotoFormulario();
-}
-
-// Insumos y Recetas / Calculadora
-async function guardarInsumo() {
-  const nombre = document.getElementById('insumo-nombre').value.trim();
-  if (!nombre) return alert("Ingrese nombre del ingrediente.");
-
-  await db.insumos.add({
-    nombre,
-    unidad: document.getElementById('insumo-unidad').value.trim() || 'un',
-    costo_unitario: parseFloat(document.getElementById('insumo-costo').value || 0),
-    stock: parseFloat(document.getElementById('insumo-stock').value || 0)
-  });
-
-  alert("Insumo registrado.");
-  document.getElementById('insumo-nombre').value = '';
-  document.getElementById('insumo-costo').value = '';
-  document.getElementById('insumo-stock').value = '';
-  cargarOpcionesRecetas();
-}
-
-async function cargarOpcionesRecetas() {
-  const insumos = await db.insumos.toArray();
-  const sel = document.getElementById('receta-select-insumo');
-  if (sel) {
-    sel.innerHTML = '<option value="">-- Seleccionar Insumo --</option>' + 
-      insumos.map(i => `<option value="${i.id}">${i.nombre} (${i.unidad}) - $${i.costo_unitario}/${i.unidad}</option>`).join('');
-  }
-}
-
-async function buscarProductoParaReceta(texto) {
-  const cont = document.getElementById('receta-sugerencias-prod');
-  if (!cont) return;
-  cont.innerHTML = '';
-
-  if (!texto.trim()) return;
-
-  const prods = await db.productos
-    .filter(p => p.detalle.toLowerCase().includes(texto.toLowerCase()) || p.codigo.toLowerCase().includes(texto.toLowerCase()))
-    .limit(4)
-    .toArray();
-
-  prods.forEach(p => {
-    const b = document.createElement('button');
-    b.className = 'btn btn-blue';
-    b.style.fontSize = '12px';
-    b.style.margin = '2px 0';
-    b.innerText = `${p.detalle} (Cód: ${p.codigo})`;
-    b.onclick = () => seleccionarProductoParaReceta(p);
-    cont.appendChild(b);
-  });
-}
-
-function seleccionarProductoParaReceta(p) {
-  document.getElementById('receta-sugerencias-prod').innerHTML = '';
-  document.getElementById('receta-buscar-prod').value = p.detalle;
-  document.getElementById('receta-cod-prod').value = p.codigo;
-  cargarDetalleRecetaRegistrada();
-}
-
-// Búsqueda específica para la pantalla separada de Calculadora de Lotes
-async function buscarProductoParaCalculadoraLote(texto) {
-  const cont = document.getElementById('calc-sugerencias-prod');
-  if (!cont) return;
-  cont.innerHTML = '';
-
-  if (!texto.trim()) return;
-
-  const prods = await db.productos
-    .filter(p => p.detalle.toLowerCase().includes(texto.toLowerCase()) || p.codigo.toLowerCase().includes(texto.toLowerCase()))
-    .limit(4)
-    .toArray();
-
-  prods.forEach(p => {
-    const b = document.createElement('button');
-    b.className = 'btn btn-blue';
-    b.style.fontSize = '12px';
-    b.style.margin = '2px 0';
-    b.innerText = `${p.detalle} (Cód: ${p.codigo})`;
-    b.onclick = () => {
-      document.getElementById('calc-sugerencias-prod').innerHTML = '';
-      document.getElementById('calc-buscar-prod').value = p.detalle;
-      document.getElementById('calc-cod-prod').value = p.codigo;
-    };
-    cont.appendChild(b);
-  });
-}
-
-async function vincularIngrediente() {
-  const codProd = document.getElementById('receta-cod-prod').value.trim();
-  const idInsumo = parseInt(document.getElementById('receta-select-insumo').value);
-  const cantUsada = parseFloat(document.getElementById('receta-cant-usada').value || 0);
-
-  if (!codProd || !idInsumo || cantUsada <= 0) return alert("Complete código de producto, insumo y cantidad.");
-  
-  await db.recetas.put({ codigo_prod: codProd, id_insumo: idInsumo, cantidad_usada: cantUsada });
-  alert("Insumo vinculado a la receta.");
-  document.getElementById('receta-cant-usada').value = '';
-  cargarDetalleRecetaRegistrada();
-}
-
-async function cargarDetalleRecetaRegistrada() {
-  const codProd = document.getElementById('receta-cod-prod').value.trim();
-  const cont = document.getElementById('receta-ingredientes-lista');
-  if (!cont) return;
-
-  if (!codProd) {
-    cont.innerHTML = '';
-    return;
-  }
-
-  const componentes = await db.recetas.where('codigo_prod').equals(codProd).toArray();
-  if (componentes.length === 0) {
-    cont.innerHTML = '<div style="color:#aaa; font-size:12px; margin-top:5px;">Sin insumos cargados para este producto.</div>';
-    return;
-  }
-
-  let html = '<table><tr><th>Insumo</th><th>Cant. Base</th><th>Acción</th></tr>';
-  for (let c of componentes) {
-    const ins = await db.insumos.get(c.id_insumo);
-    const nombreInsumo = ins ? ins.nombre : 'Insumo ' + c.id_insumo;
-    const unidad = ins ? ins.unidad : '';
-    html += `<tr>
-      <td>${nombreInsumo}</td>
-      <td>${c.cantidad_usada} ${unidad}</td>
-      <td><button class="btn btn-red" style="padding:2px 6px; font-size:11px;" onclick="eliminarIngredienteReceta('${codProd}', ${c.id_insumo})">X</button></td>
-    </tr>`;
-  }
-  cont.innerHTML = html + '</table>';
-}
-
-async function eliminarIngredienteReceta(codProd, idInsumo) {
-  await db.recetas.where('[codigo_prod+id_insumo]').equals([codProd, idInsumo]).delete();
-  cargarDetalleRecetaRegistrada();
-}
-
-async function calcularEscandallo() {
-  const cod = document.getElementById('calc-cod-prod').value.trim() || document.getElementById('receta-cod-prod').value.trim();
-  const lote = parseInt(document.getElementById('receta-lote').value || 1);
-  if (!cod) return alert("Ingrese un código de producto.");
-
-  const componentes = await db.recetas.where('codigo_prod').equals(cod).toArray();
-  if (componentes.length === 0) return alert("No hay una receta o insumos asignados a este código.");
-
-  let costoUnit = 0;
-  ultimosFaltantesCompras = [];
-  let htmlMateriales = '<h4>Materiales Necesarios para ' + lote + ' unidad(es):</h4><table><tr><th>Insumo</th><th>Requerido</th><th>Subtotal</th></tr>';
-
-  for (let c of componentes) {
-    const ins = await db.insumos.get(c.id_insumo);
-    if (ins) {
-      const cantTotal = c.cantidad_usada * lote;
-      const subtotalInsumo = ins.costo_unitario * cantTotal;
-      costoUnit += ins.costo_unitario * c.cantidad_usada;
-
-      htmlMateriales += `<tr>
-        <td>${ins.nombre}</td>
-        <td><b>${cantTotal.toFixed(2)} ${ins.unidad}</b></td>
-        <td>$${subtotalInsumo.toFixed(2)}</td>
-      </tr>`;
-
-      if (ins.stock < cantTotal) {
-        ultimosFaltantesCompras.push({ nombre: ins.nombre, faltante: cantTotal - ins.stock, unidad: ins.unidad });
-      }
-    }
-  }
-
-  htmlMateriales += '</table>';
-  const costoTotalLote = costoUnit * lote;
-
-  document.getElementById('receta-resultado-tabla').innerHTML = htmlMateriales;
-  document.getElementById('receta-resultado').innerText = `Costo Unitario: $${costoUnit.toFixed(2)} | Costo Lote (${lote} un): $${costoTotalLote.toFixed(2)}`;
-  
-  const prodExistente = await db.productos.get(cod);
-  if (prodExistente) {
-    await db.productos.update(cod, { precio_costo: costoUnit });
-  }
-}
-
-function compartirComprasWhatsApp() {
-  if (ultimosFaltantesCompras.length === 0) return alert("No hay faltantes registrados para el lote calculado.");
-  let txt = "*COMPRAS DE INSUMOS FALTANTES*\n\n";
-  ultimosFaltantesCompras.forEach(f => {
-    txt += `• ${f.nombre}: Faltan ${f.faltante.toFixed(2)} ${f.unidad}\n`;
-  });
-  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
-}
-
-// Grilla Rápida
-function inicializarGrilla() {
-  document.getElementById('contenedor-grilla').innerHTML = '';
-  for(let i=0; i<4; i++) agregarFilaGrilla();
-}
-
-function agregarFilaGrilla() {
-  const div = document.createElement('div');
-  div.style.display = 'flex'; div.style.gap = '4px'; div.style.marginBottom = '4px';
-  div.innerHTML = `
-    <input type="text" placeholder="Cód" style="width:20%;">
-    <input type="text" placeholder="Detalle" style="width:35%;">
-    <input type="number" placeholder="Costo" style="width:15%;">
-    <input type="number" placeholder="P.Ref" style="width:15%;">
-    <button class="btn btn-green" style="width:15%; padding:5px; margin:5px 0;" onclick="altaFilaGrilla(this)">OK</button>
-  `;
-  document.getElementById('contenedor-grilla').appendChild(div);
-}
-
-async function altaFilaGrilla(btn) {
-  const inputs = btn.parentElement.querySelectorAll('input');
-  const codigo = inputs[0].value.trim();
-  const detalle = inputs[1].value.trim();
-  if (!codigo || !detalle) return alert("Complete código y detalle.");
-
-  await db.productos.put({
-    codigo, detalle,
-    precio_costo: parseFloat(inputs[2].value || 0),
-    precio_ref: parseFloat(inputs[3].value || 0),
-    stock: 0, tipo: 'comestible', foto_path: ''
-  });
-
-  btn.disabled = true;
-  btn.innerText = "✓";
-}
-
-// Copia de Respaldo y Borrado
-async function exportarRespaldo() {
-  const datos = {
-    productos: await db.productos.toArray(),
-    ventas: await db.ventas.toArray(),
-    insumos: await db.insumos.toArray(),
-    recetas: await db.recetas.toArray()
-  };
-  const jsonStr = JSON.stringify(datos);
-  await navigator.clipboard.writeText(jsonStr);
-  alert("Respaldo copiado al portapapeles.");
-  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(jsonStr)}`, '_blank');
-}
-
-async function restaurarRespaldo() {
-  try {
-    const text = await navigator.clipboard.readText();
-    const datos = JSON.parse(text);
-    if (datos.productos) await db.productos.bulkPut(datos.productos);
-    if (datos.ventas) await db.ventas.bulkPut(datos.ventas);
-    if (datos.insumos) await db.insumos.bulkPut(datos.insumos);
-    if (datos.recetas) await db.recetas.bulkPut(datos.recetas);
-    alert("Datos restaurados correctamente.");
-  } catch (e) {
-    alert("Error al restaurar: " + e.message);
-  }
-}
-
-async function ejecutarBorrado() {
-  const cod = document.getElementById('borrar-codigo').value.trim();
-  if (!cod) return alert("Ingrese un código.");
-  await db.productos.delete(cod);
-  await db.recetas.where('codigo_prod').equals(cod).delete();
-  alert("Producto eliminado.");
-  document.getElementById('borrar-codigo').value = '';
-}
-
-// PUBLICIDAD Y BANNER ROTATIVO
-const URL_PUBLICIDADES_REMOTA = 'https://raw.githubusercontent.com/betazon/Feria-Gestion/main/publicidades.json';
-
-let anunciosCargados = [];
-let indiceAnuncioActual = 0;
-
-window.addEventListener('online', SincronizarPublicidades);
-
-async function CargarPublicidadesLocales() {
-  const conf = await db.configuracion.get('anuncios_guardados');
-  if (conf && conf.valor) {
-    anunciosCargados = JSON.parse(conf.valor);
-    IniciarRotacionBanner();
-  }
-}
-
-async function SincronizarPublicidades() {
-  try {
-    const respuesta = await fetch(URL_PUBLICIDADES_REMOTA + '?t=' + new Date().getTime());
-    if (respuesta.ok) {
-      const datosRubros = await respuesta.json();
-      
-      const rubroConf = await db.configuracion.get('rubro_publicidad');
-      const rubroCod = rubroConf ? rubroConf.valor : '1';
-      
-      if (datosRubros[rubroCod]) {
-        anunciosCargados = datosRubros[rubroCod];
-        await db.configuracion.put({ clave: 'anuncios_guardados', valor: JSON.stringify(anunciosCargados) });
-        IniciarRotacionBanner();
-      }
-    }
-  } catch (err) {
-    console.log("Modo offline: Usando publicidad almacenada localmente.");
-  }
-}
-
-function IniciarRotacionBanner() {
-  if (anunciosCargados.length === 0) return;
-  
-  MostrarSiguienteAnuncio();
-  setInterval(() => {
-    MostrarSiguienteAnuncio();
-  }, 8000);
-}
-
-function MostrarSiguienteAnuncio() {
-  const anuncio = anunciosCargados[indiceAnuncioActual];
-  const bannerEl = document.getElementById('banner-texto');
-  
-  if (bannerEl && anuncio) {
-    bannerEl.innerText = `🏪 ${anuncio.negocio} | 🏷️ ${anuncio.oferta} | 📞 ${anuncio.contacto}`;
-  }
-
-  indiceAnuncioActual = (indiceAnuncioActual + 1) % anunciosCargados.length;
-}
+async function importarDesdeEscandallo(
