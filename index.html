@@ -116,7 +116,7 @@
         <div style="font-size:24px; font-weight:bold; color:#800080; width:30px; text-align:center;">1️⃣</div>
         <div style="flex:1;">
           <button class="btn btn-purple" style="margin:0; text-align:left; padding:8px 12px; font-size:14px;" onclick="mostrarPantalla('pantalla-insumos')">📦 PASO 1: CARGAR INSUMOS</button>
-          <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;">Cargá tus materias primas primeras (Ej: Harina, Cuero, Hilos).</span>
+          <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;">Cargá tus materias primas (Ej: Harina, Cuero, Hilos).</span>
         </div>
         <div style="font-size:18px; color:#aaa;">➔</div>
       </div>
@@ -238,7 +238,7 @@
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
-  <!-- PANTALLA 5: CONSULTA DE PRODUCTOS Y STOCK (TARJETAS VISUALES CON ETIQUETAS Y VENTA DIRECTA) -->
+  <!-- PANTALLA 5: CATÁLOGO Y STOCK DE PRODUCTOS -->
   <div id="pantalla-consulta" class="hidden">
     <h3>CATÁLOGO Y STOCK DE PRODUCTOS</h3>
     <input type="text" id="consulta-filtro" placeholder="Filtrar por código o detalle..." oninput="cargarConsultaStock()">
@@ -248,7 +248,6 @@
       <button class="btn btn-gray" style="font-size:12px;" onclick="cargarConsultaStock('no_comestible')">No Comestibles</button>
     </div>
     
-    <!-- Contenedor donde se generan las tarjetas detalladas -->
     <div id="consulta-tarjetas-container"></div>
 
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')" style="margin-top:15px;">VOLVER AL MENÚ</button>
@@ -311,7 +310,7 @@
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')" style="margin-top: 10px;">VOLVER AL MENÚ</button>
   </div>
 
-  <!-- PANTALLA 8: FICHA TÉCNICA Y VINCULACIÓN DE INSUMOS -->
+  <!-- PANTALLA 8: FICHA TÉCNICA Y RECETA -->
   <div id="pantalla-recetas" class="hidden">
     <h3>FICHA TÉCNICA Y RECETA</h3>
     
