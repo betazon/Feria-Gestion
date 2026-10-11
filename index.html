@@ -364,12 +364,19 @@
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
-  <!-- PANTALLA 10: COPIA DE RESPALDO -->
+  <!-- PANTALLA 10: COPIA DE RESPALDO (EXPORTAR E IMPORTAR ARCHIVOS) -->
   <div id="pantalla-backup" class="hidden">
     <h3>RESPALDO DE DATOS</h3>
-    <button class="btn btn-green" onclick="exportarRespaldo()">ENVIAR RESPALDO POR WHATSAPP</button>
-    <button class="btn btn-orange" onclick="restaurarRespaldo()">RESTAURAR DESDE PORTAPAPELES</button>
-    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+    <p style="font-size:12px; color:#aaa; text-align:center;">Guardá una copia de seguridad o cargá tus datos de otro dispositivo.</p>
+    
+    <button class="btn btn-green" onclick="exportarArchivoRespaldo()">📥 Descargar Respaldo (Archivo JSON)</button>
+
+    <input type="file" id="input-archivo-backup" accept=".json" style="display:none;" onchange="importarArchivoRespaldo(event)">
+    <button class="btn btn-orange" onclick="document.getElementById('input-archivo-backup').click()">📂 Importar desde Archivo</button>
+
+    <button class="btn btn-teal" style="margin-top: 15px;" onclick="exportarRespaldoWhatsApp()">💬 Mandar Respaldo por WhatsApp</button>
+    
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')" style="margin-top: 15px;">VOLVER AL MENÚ</button>
   </div>
 
   <!-- PANTALLA 11: BORRAR PRODUCTO -->

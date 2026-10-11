@@ -794,7 +794,7 @@ function compartirComprasWhatsApp() {
   window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
 }
 
-// GESTIÓN DE GRILLA, RESPALDO Y BORRADO
+// GESTIÓN DE GRILLA Y BORRADO
 function inicializarGrilla() {
   document.getElementById('contenedor-grilla').innerHTML = '';
   for(let i=0; i<4; i++) agregarFilaGrilla();
@@ -830,7 +830,65 @@ async function altaFilaGrilla(btn) {
   btn.innerText = "✓";
 }
 
-async function exportarRespaldo() {
+async function ejecutarBorrado() {
+  const cod = document.getElementById('borrar-codigo').value.trim();
+  if (!cod) return alert("Ingrese un código.");
+  await db.productos.delete(cod);
+  await db.recetas.where('codigo_prod').equals(cod).delete();
+  alert("Producto eliminado.");
+  document.getElementById('borrar-codigo').value = '';
+}
+
+// NUEVAS FUNCIONES DE EXPORTAR E IMPORTAR ARCHIVOS Y WHATSAPP
+async function exportarArchivoRespaldo() {
+  const datos = {
+    productos: await db.productos.toArray(),
+    ventas: await db.ventas.toArray(),
+    insumos: await db.insumos.toArray(),
+    recetas: await db.recetas.toArray(),
+    configuracion: await db.configuracion.toArray()
+  };
+
+  const jsonStr = JSON.stringify(datos, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Respaldo_Feria_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  alert("¡Respaldo exportado con éxito a tu carpeta de Descargas!");
+}
+
+async function importarArchivoRespaldo(event) {
+  const archivo = event.target.files[0];
+  if (!archivo) return;
+
+  const lector = new FileReader();
+  lector.onload = async function(e) {
+    try {
+      const datos = JSON.parse(e.target.result);
+      
+      if (datos.productos) await db.productos.bulkPut(datos.productos);
+      if (datos.ventas) await db.ventas.bulkPut(datos.ventas);
+      if (datos.insumos) await db.insumos.bulkPut(datos.insumos);
+      if (datos.recetas) await db.recetas.bulkPut(datos.recetas);
+      if (datos.configuracion) await db.configuracion.bulkPut(datos.configuracion);
+
+      alert("¡Base de datos importada y restaurada correctamente!");
+      mostrarPantalla('pantalla-menu');
+    } catch (err) {
+      alert("Error al leer el archivo de respaldo: " + err.message);
+    }
+  };
+  lector.readAsText(archivo);
+}
+
+async function exportarRespaldoWhatsApp() {
   const datos = {
     productos: await db.productos.toArray(),
     ventas: await db.ventas.toArray(),
@@ -841,29 +899,6 @@ async function exportarRespaldo() {
   await navigator.clipboard.writeText(jsonStr);
   alert("Respaldo copiado al portapapeles.");
   window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(jsonStr)}`, '_blank');
-}
-
-async function restaurarRespaldo() {
-  try {
-    const text = await navigator.clipboard.readText();
-    const datos = JSON.parse(text);
-    if (datos.productos) await db.productos.bulkPut(datos.productos);
-    if (datos.ventas) await db.ventas.bulkPut(datos.ventas);
-    if (datos.insumos) await db.insumos.bulkPut(datos.insumos);
-    if (datos.recetas) await db.recetas.bulkPut(datos.recetas);
-    alert("Datos restaurados correctamente.");
-  } catch (e) {
-    alert("Error al restaurar: " + e.message);
-  }
-}
-
-async function ejecutarBorrado() {
-  const cod = document.getElementById('borrar-codigo').value.trim();
-  if (!cod) return alert("Ingrese un código.");
-  await db.productos.delete(cod);
-  await db.recetas.where('codigo_prod').equals(cod).delete();
-  alert("Producto eliminado.");
-  document.getElementById('borrar-codigo').value = '';
 }
 
 // PUBLICIDAD Y BANNER ROTATIVO
