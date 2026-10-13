@@ -23,10 +23,10 @@ const DICCIONARIO_RUBROS = {
   '6': { nombre: 'Orfebrería', banner: '💎 Metales, Piedras y Herramientas de Precisión' }
 };
 
-// Control de navegación entre pantallas
+// Control de navegación entre pantallas (incluyendo la pantalla de bienvenida)
 function mostrarPantalla(id) {
   const ids = [
-    'pantalla-portada', 'pantalla-menu', 'pantalla-venta', 'pantalla-reporte',
+    'pantalla-bienvenida', 'pantalla-portada', 'pantalla-menu', 'pantalla-venta', 'pantalla-reporte',
     'pantalla-reporte-general', 'pantalla-consulta', 'pantalla-nuevo', 'pantalla-insumos', 
     'pantalla-recetas', 'pantalla-calculadora-lote', 'pantalla-grilla', 'pantalla-backup', 'pantalla-borrar'
   ];
@@ -50,14 +50,46 @@ function mostrarPantalla(id) {
   if (id === 'pantalla-grilla') inicializarGrilla();
 }
 
-// Iniciar siempre en la portada y verificar publicidad
+// Validación de primer inicio y verificación de publicidad al cargar
 document.addEventListener("DOMContentLoaded", async () => {
-  mostrarPantalla('pantalla-portada');
   await CargarPublicidadesLocales();
+  
+  const registrado = await db.configuracion.get('usuario_registrado');
+  if (!registrado) {
+    mostrarPantalla('pantalla-bienvenida');
+  } else {
+    mostrarPantalla('pantalla-portada');
+  }
+
   if (navigator.onLine) {
     await SincronizarPublicidades();
   }
 });
+
+// Guardar los datos del registro inicial obligatorio
+async function guardarRegistroInicial() {
+  const nombre = document.getElementById('reg-nombre').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const whatsapp = document.getElementById('reg-whatsapp').value.trim();
+  const rubro = document.getElementById('reg-rubro').value;
+  const acepta = document.getElementById('reg-acepta').checked;
+
+  if (!nombre || !email || !whatsapp || !rubro) {
+    return alert("Por favor complete su nombre, correo, WhatsApp y seleccione un rubro.");
+  }
+  if (!acepta) {
+    return alert("Debe aceptar los términos y condiciones para continuar.");
+  }
+
+  await db.configuracion.put({ clave: 'usuario_registrado', valor: 'true' });
+  await db.configuracion.put({ clave: 'perfil_nombre', valor: nombre });
+  await db.configuracion.put({ clave: 'perfil_email', valor: email });
+  await db.configuracion.put({ clave: 'perfil_whatsapp', valor: whatsapp });
+  await db.configuracion.put({ clave: 'rubro_publicidad', valor: rubro });
+
+  alert("¡Registro exitoso! Bienvenido a la comunidad ferial.");
+  mostrarPantalla('pantalla-portada');
+}
 
 // Lógica de Menú y Modo (Productor/Revendedor)
 async function obtenerRubro() {
@@ -839,7 +871,7 @@ async function ejecutarBorrado() {
   document.getElementById('borrar-codigo').value = '';
 }
 
-// NUEVAS FUNCIONES DE EXPORTAR E IMPORTAR ARCHIVOS Y WHATSAPP
+// FUNCIONES DE EXPORTAR E IMPORTAR ARCHIVOS Y WHATSAPP
 async function exportarArchivoRespaldo() {
   const datos = {
     productos: await db.productos.toArray(),

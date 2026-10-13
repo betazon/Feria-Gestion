@@ -84,8 +84,55 @@
 </head>
 <body>
 
+  <!-- PANTALLA 0 / OBLIGATORIA: BIENVENIDA Y REGISTRO INICIAL -->
+  <div id="pantalla-bienvenida" class="hidden">
+    <h2>¡BIENVENIDO A LA FERIA!</h2>
+    <div style="text-align:center; margin: 15px 0;">
+      <div style="width: 90px; height: 90px; background: #00b359; border-radius: 50%; display: flex; align-items:center; justify-content:center; margin: 0 auto; font-size: 32px; border: 2px solid #fff;">🧵</div>
+      <h3 style="color:#00d9ff; margin:10px 0 5px 0;">Gestión Ferial Colaborativa</h3>
+      <p style="font-size:12px; color:#aaa; padding: 0 15px;">Para combatir la invisibilidad de nuestro trabajo. 100% gratis, sin intermediarios y tus datos quedan en tu celular.</p>
+    </div>
+
+    <div class="card" style="border-left: 4px solid #00b359;">
+      <h4 style="margin:0 0 8px 0; font-size:13px; text-align:left; color:#00e676;">Configuración Inicial:</h4>
+      
+      <label style="font-size:12px; color:#ccc;">Tu Nombre / Emprendimiento:</label>
+      <input type="text" id="reg-nombre" placeholder="Ej: Artesanías Aike">
+
+      <label style="font-size:12px; color:#ccc; margin-top:5px; display:block;">Tu WhatsApp (para soporte y avisos):</label>
+      <input type="text" id="reg-whatsapp" placeholder="Ej: 2804...">
+
+      <label style="font-size:12px; color:#ccc; margin-top:5px; display:block;">Tu Correo Electrónico:</label>
+      <input type="email" id="reg-email" placeholder="tucorreo@gmail.com">
+
+      <label style="font-size:12px; color:#ccc; margin-top:5px; display:block;">Seleccioná tu Rubro:</label>
+      <select id="reg-rubro">
+        <option value="">-- Elija su Rubro Principal --</option>
+        <option value="1">1. Comida / Panadería</option>
+        <option value="2">2. Ropa / Indumentaria</option>
+        <option value="3">3. Cuero / Marroquinería</option>
+        <option value="4">4. Dulces / Conservas</option>
+        <option value="5">5. Carnes / Chacinados</option>
+        <option value="6">6. Orfebrería / Joyería / Varios</option>
+      </select>
+    </div>
+
+    <!-- TÉRMINOS Y DESCARGO DE RESPONSABILIDAD -->
+    <div class="card" style="font-size:11px; color:#bbb; max-height: 80px; overflow-y: scroll; border: 1px solid #444;">
+      <b>Términos y Descargo de Responsabilidad:</b><br>
+      Esta aplicación se provee de forma libre y solidaria entre feriantes. El creador no se responsabiliza por pérdidas de datos por borrado de caché del navegador. Los registros financieros y de stock son de uso exclusivo y privado del usuario; ningún dato económico sale de su dispositivo salvo que decida exportarlo.
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 12px;">
+      <input type="checkbox" id="reg-acepta" style="width: 20px; height: 20px; margin:0;">
+      <label for="reg-acepta">Acepto los términos y el descargo de responsabilidad</label>
+    </div>
+
+    <button class="btn btn-green" onclick="guardarRegistroInicial()">COMENZAR A USAR LA APP</button>
+  </div>
+
   <!-- PANTALLA 1: PORTADA -->
-  <div id="pantalla-portada">
+  <div id="pantalla-portada" class="hidden">
     <h2>SISTEMA DE GESTIÓN DE FERIA</h2>
     <div style="text-align:center; margin: 20px 0;">
       <img src="foto.jpg" alt="Foto de Portada" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 2px solid #00b359;">
@@ -364,7 +411,7 @@
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
-  <!-- PANTALLA 10: COPIA DE RESPALDO (EXPORTAR E IMPORTAR ARCHIVOS) -->
+  <!-- PANTALLA 10: COPIA DE RESPALDO -->
   <div id="pantalla-backup" class="hidden">
     <h3>RESPALDO DE DATOS</h3>
     <p style="font-size:12px; color:#aaa; text-align:center;">Guardá una copia de seguridad o cargá tus datos de otro dispositivo.</p>
