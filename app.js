@@ -1180,3 +1180,116 @@ async function cargarDetalleRecetaRegistrada() {
   }
   cont.innerHTML = html + '</table>';
 }
+// Cargar datos del insumo para editar (Muestra el botón de eliminar)
+async function cargarInsumoParaEditar(id) {
+  const ins = await db.insumos.get(id);
+  if (!ins) return;
+
+  insumoEnEdicionId = ins.id;
+  document.getElementById('insumo-nombre').value = ins.nombre;
+  document.getElementById('insumo-unidad').value = ins.unidad.toLowerCase();
+  document.getElementById('insumo-costo').value = ins.costo_unitario;
+  document.getElementById('insumo-stock').value = ins.stock;
+
+  const btnGuardar = document.getElementById('btn-guardar-insumo');
+  if (btnGuardar) btnGuardar.innerText = "MODIFICAR INSUMO";
+
+  const btnEliminar = document.getElementById('btn-eliminar-insumo');
+  if (btnEliminar) btnEliminar.classList.remove('hidden'); // Mostrar botón de eliminar
+
+  document.getElementById('contenedor-lista-insumos').classList.add('hidden');
+}
+
+// Eliminar un insumo de la base de datos
+async function eliminarInsumoActual() {
+  if (!insumoEnEdicionId) return;
+
+  if (confirm("¿Estás seguro de eliminar este insumo definitivamente? Si está en una receta, podría afectar el cálculo.")) {
+    await db.insumos.delete(insumoEnEdicionId);
+    alert("🗑️ Insumo eliminado correctamente.");
+    
+    // Limpiar formulario y restablecer botones
+    insumoEnEdicionId = null;
+    document.getElementById('insumo-nombre').value = '';
+    document.getElementById('insumo-unidad').value = '';
+    document.getElementById('insumo-costo').value = '';
+    document.getElementById('insumo-stock').value = '';
+    
+    document.getElementById('btn-guardar-insumo').innerText = "GUARDAR INSUMO";
+    document.getElementById('btn-eliminar-insumo').classList.add('hidden');
+    
+    cargarOpcionesRecetas();
+    toggleListadoInsumos();
+  }
+}
+
+// Asegurarse de limpiar los campos al guardar un insumo nuevo o editado
+async function guardarInsumo() {
+  const nombre = document.getElementById('insumo-nombre').value.trim();
+  const unidad = document.getElementById('insumo-unidad').value;
+  const costoUnitarioNuevo = parseFloat(document.getElementById('insumo-costo').value || 0);
+  const stockNuevo = parseFloat(document.getElementById('insumo-stock').value || 0);
+
+  if (!nombre || !unidad) return alert("Complete el nombre y seleccione una unidad de medida.");
+
+  if (insumoEnEdicionId) {
+    await db.insumos.update(insumoEnEdicionId, { 
+      nombre, 
+      unidad, 
+      costo_unitario: costoUnitarioNuevo, 
+      stock: stockNuevo 
+    });
+    alert("✅ Insumo modificado correctamente.");
+    
+    insumoEnEdicionId = null;
+    document.getElementById('btn-guardar-insumo').innerText = "GUARDAR INSUMO";
+    document.getElementById('btn-eliminar-insumo').classList.add('hidden');
+  } else {
+    // Lógica de Precio Promedio Ponderado para insumos nuevos con igual nombre
+    const insumosExistentes = await db.insumos
+      .filter(i => i.nombre.toLowerCase() === nombre.toLowerCase())
+      .toArray();
+
+    if (insumosExistentes.length > 0) {
+      const insumoExistente = insumosExistentes[0];
+      const valorStockPrevio = insumoExistente.stock * insumoExistente.costo_unitario;
+      const valorStockIngresado = stockNuevo * costoUnitarioNuevo;
+      const stockTotalActualizado = insumoExistente.stock + stockNuevo;
+      
+      const nuevoCostoPromedioPonderado = stockTotalActualizado > 0 
+        ? (valorStockPrevio + valorStockIngresado) / stockTotalActualizado 
+        : costoUnitarioNuevo;
+
+      await db.insumos.update(insumoExistente.id, {
+        stock: stockTotalActualizado,
+        costo_unitario: nuevoCostoPromedioPonderado,
+        unidad: unidad
+      });
+
+      alert(`¡Insumo "${insumoExistente.nombre}" consolidado!\n\n` +
+            `• Stock total actualizado: ${stockTotalActualizado} ${unidad}\n` +
+            `• Nuevo Costo Promedio: $${nuevoCostoPromedioPonderado.toFixed(2)} / ${unidad}`);
+    } else {
+      await db.insumos.add({
+        nombre,
+        unidad,
+        costo_unitario: costoUnitarioNuevo,
+        stock: stockNuevo
+      });
+
+      alert("¡Insumo registrado correctamente!");
+    }
+  }
+
+  document.getElementById('insumo-nombre').value = '';
+  document.getElementById('insumo-unidad').value = '';
+  document.getElementById('insumo-costo').value = '';
+  document.getElementById('insumo-stock').value = '';
+  cargarOpcionesRecetas();
+
+  const contenedor = document.getElementById('contenedor-lista-insumos');
+  if (!contenedor.classList.contains('hidden')) {
+    contenedor.classList.add('hidden');
+    toggleListadoInsumos();
+  }
+}

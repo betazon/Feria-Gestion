@@ -365,15 +365,27 @@
     <!-- TARJETA DE EDUCACIÓN FINANCIERA -->
     <div class="card" style="border-left: 4px solid #00d9ff; background: #081d24; margin-bottom: 10px;">
       <p style="margin: 0; font-size: 12px; color: #b3f0ff;">
-        <b>💡 Gestión Inteligente:</b> Si agregás un insumo existente (ej: <i>Harina</i>) a otro precio, la app calcula automáticamente el <b>Precio Promedio Ponderado</b> para cuidar tu margen.
+        <b>💡 Gestión Inteligente:</b> Seleccioná la unidad correcta para que la app pueda descontar automáticamente en las recetas.
       </p>
     </div>
 
-    <input type="text" id="insumo-nombre" placeholder="Nombre (Ej: Harina, Cuero)">
-    <input type="text" id="insumo-unidad" placeholder="Unidad (kg, g, m, un)">
-    <input type="number" id="insumo-costo" placeholder="Costo por unidad ($)">
-    <input type="number" id="insumo-stock" placeholder="Stock disponible">
+    <input type="text" id="insumo-nombre" placeholder="Nombre (Ej: Harina, Cuero, Hilos)">
+    
+    <!-- Selector de unidades estandarizadas para evitar errores -->
+    <select id="insumo-unidad">
+      <option value="">-- Seleccionar Unidad de Medida --</option>
+      <option value="kg">Kilogramos (kg)</option>
+      <option value="g">Gramos (g)</option>
+      <option value="litros">Litros (l)</option>
+      <option value="m">Metros (m)</option>
+      <option value="un">Unidades (un)</option>
+    </select>
+
+    <input type="number" step="0.01" id="insumo-costo" placeholder="Costo por unidad ($)">
+    <input type="number" step="0.01" id="insumo-stock" placeholder="Stock disponible">
+    
     <button class="btn btn-green" id="btn-guardar-insumo" onclick="guardarInsumo()">GUARDAR INSUMO</button>
+    <button class="btn btn-red hidden" id="btn-eliminar-insumo" onclick="eliminarInsumoActual()">ELIMINAR ESTE INSUMO</button>
     
     <button class="btn btn-blue" style="margin-top: 10px;" onclick="toggleListadoInsumos()">📋 Ver Listado de Insumos Actuales</button>
     <div id="contenedor-lista-insumos" class="hidden" style="margin-top: 10px;"></div>
