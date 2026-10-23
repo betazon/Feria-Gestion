@@ -12,6 +12,7 @@ let productoSeleccionadoVenta = null;
 let filtroConsultaActual = 'todos';
 let ultimosFaltantesCompras = [];
 let chartVentasInstancia = null;
+let insumoEnEdicionId = null;
 
 // Lista de Rubros / Publicidades
 const DICCIONARIO_RUBROS = {
@@ -23,7 +24,7 @@ const DICCIONARIO_RUBROS = {
   '6': { nombre: 'Orfebrería', banner: '💎 Metales, Piedras y Herramientas de Precisión' }
 };
 
-// Control de navegación entre pantallas (incluyendo la pantalla de bienvenida)
+// Control de navegación entre pantallas
 function mostrarPantalla(id) {
   const ids = [
     'pantalla-bienvenida', 'pantalla-portada', 'pantalla-menu', 'pantalla-venta', 'pantalla-reporte',
@@ -50,7 +51,7 @@ function mostrarPantalla(id) {
   if (id === 'pantalla-grilla') inicializarGrilla();
 }
 
-// Validación de primer inicio y verificación de publicidad al cargar
+// Validación de primer inicio y verificación de publicidad
 document.addEventListener("DOMContentLoaded", async () => {
   await CargarPublicidadesLocales();
   
@@ -191,6 +192,7 @@ function seleccionarProductoVenta(p) {
   document.getElementById('venta-precio').value = p.precio_ref;
 }
 
+// CONFIRMAR VENTA Y DESCONTAR INSUMOS AUTOMÁTICAMENTE
 async function validarYConfirmarVenta() {
   if (!productoSeleccionadoVenta) return alert("Seleccione un producto primero.");
   
@@ -199,8 +201,27 @@ async function validarYConfirmarVenta() {
   const stockNuevo = productoSeleccionadoVenta.stock - cant;
 
   if (stockNuevo < 0) {
-    if (!confirm(`¡Stock insuficiente!\nStock actual: ${productoSeleccionadoVenta.stock}\nQuedará en: ${stockNuevo}\n¿Desea vender de todos modos?`)) {
+    if (!confirm(`⚠️ ¡Stock insuficiente!\nStock actual: ${productoSeleccionadoVenta.stock}\nQuedará en: ${stockNuevo}\n¿Desea vender de todos modos?`)) {
       return;
+    }
+  }
+
+  // Descuento automático de insumos según receta
+  const componentesReceta = await db.recetas.where('codigo_prod').equals(productoSeleccionadoVenta.codigo).toArray();
+
+  for (let comp of componentesReceta) {
+    const insumo = await db.insumos.get(comp.id_insumo);
+    if (insumo) {
+      let cantidadADescontar = comp.cantidad_usada * cant;
+
+      // Conversión automática de gramos a kilos si el insumo está en kg y la receta usó gramos (>10)
+      const unidadInsumo = insumo.unidad.toLowerCase();
+      if ((unidadInsumo === 'kg' || unidadInsumo === 'kilo' || unidadInsumo === 'kilos') && comp.cantidad_usada > 10) {
+        cantidadADescontar = (comp.cantidad_usada / 1000) * cant;
+      }
+
+      const nuevoStockInsumo = Math.max(0, insumo.stock - cantidadADescontar);
+      await db.insumos.update(insumo.id, { stock: nuevoStockInsumo });
     }
   }
 
@@ -215,7 +236,7 @@ async function validarYConfirmarVenta() {
   });
 
   await db.productos.update(productoSeleccionadoVenta.codigo, { stock: stockNuevo });
-  alert("Venta registrada.");
+  alert("✅ Venta registrada e insumos descontados del stock automáticamente.");
 
   document.getElementById('venta-buscar').value = '';
   document.getElementById('venta-precio').value = '';
@@ -608,7 +629,7 @@ async function guardarProducto() {
   limpiarFotoFormulario();
 }
 
-// INSUMOS Y RECETAS
+// GESTIÓN DE INSUMOS: EDICIÓN, LISTADO Y PRECIO PROMEDIO PONDERADO
 async function toggleListadoInsumos() {
   const contenedor = document.getElementById('contenedor-lista-insumos');
   if (!contenedor.classList.contains('hidden')) {
@@ -623,12 +644,13 @@ async function toggleListadoInsumos() {
     return;
   }
 
-  let html = '<div class="card"><h4 style="margin:0 0 5px 0; font-size:13px; color:#00d9ff;">Insumos en Stock:</h4><table><tr><th>Insumo</th><th>Cantidad</th><th>Unidad</th></tr>';
+  let html = '<div class="card"><h4 style="margin:0 0 5px 0; font-size:13px; color:#00d9ff;">Insumos en Stock (Toca ✏️ para editar):</h4><table><tr><th>Insumo</th><th>Stock</th><th>Costo</th><th>Acción</th></tr>';
   insumos.forEach((ins, i) => {
     html += `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
       <td>${ins.nombre}</td>
-      <td style="color:#00e676; font-weight:bold;">${ins.stock}</td>
-      <td>${ins.unidad}</td>
+      <td style="color:#00e676; font-weight:bold;">${ins.stock} ${ins.unidad}</td>
+      <td>$${ins.costo_unitario.toFixed(2)} / ${ins.unidad}</td>
+      <td><button class="btn btn-blue" style="padding:2px 6px; font-size:11px; margin:0;" onclick="cargarInsumoParaEditar(${ins.id})">✏️</button></td>
     </tr>`;
   });
   html += '</table></div>';
@@ -636,18 +658,79 @@ async function toggleListadoInsumos() {
   contenedor.classList.remove('hidden');
 }
 
+async function cargarInsumoParaEditar(id) {
+  const ins = await db.insumos.get(id);
+  if (!ins) return;
+
+  insumoEnEdicionId = ins.id;
+  document.getElementById('insumo-nombre').value = ins.nombre;
+  document.getElementById('insumo-unidad').value = ins.unidad;
+  document.getElementById('insumo-costo').value = ins.costo_unitario;
+  document.getElementById('insumo-stock').value = ins.stock;
+
+  const btnGuardar = document.getElementById('btn-guardar-insumo');
+  if (btnGuardar) btnGuardar.innerText = "MODIFICAR INSUMO";
+
+  document.getElementById('contenedor-lista-insumos').classList.add('hidden');
+}
+
 async function guardarInsumo() {
   const nombre = document.getElementById('insumo-nombre').value.trim();
-  if (!nombre) return alert("Ingrese nombre del ingrediente.");
+  const unidad = document.getElementById('insumo-unidad').value.trim().toLowerCase() || 'un';
+  const costoUnitarioNuevo = parseFloat(document.getElementById('insumo-costo').value || 0);
+  const stockNuevo = parseFloat(document.getElementById('insumo-stock').value || 0);
 
-  await db.insumos.add({
-    nombre,
-    unidad: document.getElementById('insumo-unidad').value.trim() || 'un',
-    costo_unitario: parseFloat(document.getElementById('insumo-costo').value || 0),
-    stock: parseFloat(document.getElementById('insumo-stock').value || 0)
-  });
+  if (!nombre) return alert("Ingrese el nombre del ingrediente o insumo.");
 
-  alert("Insumo registrado.");
+  if (insumoEnEdicionId) {
+    await db.insumos.update(insumoEnEdicionId, { 
+      nombre, 
+      unidad, 
+      costo_unitario: costoUnitarioNuevo, 
+      stock: stockNuevo 
+    });
+    alert("✅ Insumo modificado correctamente.");
+    insumoEnEdicionId = null;
+    const btnGuardar = document.getElementById('btn-guardar-insumo');
+    if (btnGuardar) btnGuardar.innerText = "GUARDAR INSUMO";
+  } else {
+    const insumosExistentes = await db.insumos
+      .filter(i => i.nombre.toLowerCase() === nombre.toLowerCase())
+      .toArray();
+
+    if (insumosExistentes.length > 0) {
+      const insumoExistente = insumosExistentes[0];
+
+      const valorStockPrevio = insumoExistente.stock * insumoExistente.costo_unitario;
+      const valorStockIngresado = stockNuevo * costoUnitarioNuevo;
+      const stockTotalActualizado = insumoExistente.stock + stockNuevo;
+      
+      const nuevoCostoPromedioPonderado = stockTotalActualizado > 0 
+        ? (valorStockPrevio + valorStockIngresado) / stockTotalActualizado 
+        : costoUnitarioNuevo;
+
+      await db.insumos.update(insumoExistente.id, {
+        stock: stockTotalActualizado,
+        costo_unitario: nuevoCostoPromedioPonderado,
+        unidad: unidad
+      });
+
+      alert(`¡Insumo "${insumoExistente.nombre}" consolidado!\n\n` +
+            `• Stock total actualizado: ${stockTotalActualizado} ${unidad}\n` +
+            `• Nuevo Costo Promedio Ponderado: $${nuevoCostoPromedioPonderado.toFixed(2)} / ${unidad}`);
+
+    } else {
+      await db.insumos.add({
+        nombre,
+        unidad,
+        costo_unitario: costoUnitarioNuevo,
+        stock: stockNuevo
+      });
+
+      alert("¡Insumo registrado correctamente!");
+    }
+  }
+
   document.getElementById('insumo-nombre').value = '';
   document.getElementById('insumo-costo').value = '';
   document.getElementById('insumo-stock').value = '';
@@ -665,7 +748,7 @@ async function cargarOpcionesRecetas() {
   const sel = document.getElementById('receta-select-insumo');
   if (sel) {
     sel.innerHTML = '<option value="">-- Seleccionar Insumo --</option>' + 
-      insumos.map(i => `<option value="${i.id}">${i.nombre} (${i.unidad}) - $${i.costo_unitario}/${i.unidad}</option>`).join('');
+      insumos.map(i => `<option value="${i.id}">${i.nombre} (${i.unidad}) - $${i.costo_unitario.toFixed(2)}/${i.unidad}</option>`).join('');
   }
 }
 
@@ -817,6 +900,54 @@ async function calcularEscandallo() {
   }
 }
 
+// CALCULAR MÁXIMO PRODUCIBLE SEGÚN STOCK DE INSUMOS
+async function calcularMaximoProducible() {
+  const cod = document.getElementById('calc-cod-prod').value.trim() || document.getElementById('receta-cod-prod').value.trim();
+  if (!cod) return alert("Seleccione un producto primero.");
+
+  const componentes = await db.recetas.where('codigo_prod').equals(cod).toArray();
+  if (componentes.length === 0) return alert("Este producto no tiene insumos vinculados en su receta.");
+
+  let maximoPosible = Infinity;
+  let insumoLimitante = "";
+  let detalleAnalisis = "<h4>Análisis de Stock para Producción:</h4><ul>";
+
+  for (let c of componentes) {
+    const ins = await db.insumos.get(c.id_insumo);
+    if (ins) {
+      let stockParaCalculo = ins.stock;
+      const unidadInsumo = ins.unidad.toLowerCase();
+
+      // Conversión si el insumo está en kg pero la receta usa gramos (>10g)
+      if ((unidadInsumo === 'kg' || unidadInsumo === 'kilo' || unidadInsumo === 'kilos') && c.cantidad_usada > 10) {
+        stockParaCalculo = ins.stock * 1000;
+      }
+
+      const unidadesConEsteInsumo = Math.floor(stockParaCalculo / c.cantidad_usada);
+      detalleAnalisis += `<li>${ins.nombre}: Tenés ${ins.stock} ${ins.unidad}. Alcanza para <b>${unidadesConEsteInsumo}</b> un.</li>`;
+
+      if (unidadesConEsteInsumo < maximoPosible) {
+        maximoPosible = unidadesConEsteInsumo;
+        insumoLimitante = ins.nombre;
+      }
+    } else {
+      maximoPosible = 0;
+      detalleAnalisis += `<li style="color:#ff5252;">Falta registrar insumo ID ${c.id_insumo}</li>`;
+    }
+  }
+  detalleAnalisis += "</ul>";
+
+  const resultadoEl = document.getElementById('receta-resultado');
+  if (maximoPosible === Infinity || maximoPosible <= 0) {
+    resultadoEl.innerHTML = `<span style="color:#ff5252;">⚠️ No se puede fabricar ninguna unidad. Falta stock de: <b>${insumoLimitante || 'insumos'}</b>.</span>`;
+  } else {
+    resultadoEl.innerHTML = `<span style="color:#00e676; font-size:16px;">🎯 Con tu stock actual podés fabricar hasta <b>${maximoPosible} unidades</b>.<br><span style="font-size:12px; color:#ffb74d;">(El insumo que marca el límite es: ${insumoLimitante})</span></span>`;
+  }
+
+  const tablaEl = document.getElementById('receta-resultado-tabla');
+  if (tablaEl) tablaEl.innerHTML = detalleAnalisis;
+}
+
 function compartirComprasWhatsApp() {
   if (ultimosFaltantesCompras.length === 0) return alert("No hay faltantes registrados para el lote calculado.");
   let txt = "*COMPRAS DE INSUMOS FALTANTES*\n\n";
@@ -871,7 +1002,7 @@ async function ejecutarBorrado() {
   document.getElementById('borrar-codigo').value = '';
 }
 
-// FUNCIONES DE EXPORTAR E IMPORTAR ARCHIVOS Y WHATSAPP
+// EXPORTAR E IMPORTAR RESPALDOS
 async function exportarArchivoRespaldo() {
   const datos = {
     productos: await db.productos.toArray(),
@@ -987,4 +1118,65 @@ function MostrarSiguienteAnuncio() {
   }
 
   indiceAnuncioActual = (indiceAnuncioActual + 1) % anunciosCargados.length;
+}
+function seleccionarProductoParaReceta(p) {
+  document.getElementById('receta-sugerencias-prod').innerHTML = '';
+  document.getElementById('receta-buscar-prod').value = p.detalle;
+  document.getElementById('receta-cod-prod').value = p.codigo;
+  cargarDetalleRecetaRegistrada();
+}
+
+async function cargarDetalleRecetaRegistrada() {
+  const codProd = document.getElementById('receta-cod-prod').value.trim();
+  const cont = document.getElementById('receta-ingredientes-lista');
+  const imgEl = document.getElementById('receta-foto-preview');
+  const phEl = document.getElementById('receta-foto-placeholder');
+  const tituloEl = document.getElementById('receta-prod-titulo');
+
+  if (!cont) return;
+
+  if (!codProd) {
+    cont.innerHTML = '<span style="color:#aaa; font-size:11px;">Busque un producto para ver sus componentes.</span>';
+    if (imgEl) imgEl.style.display = 'none';
+    if (phEl) phEl.style.display = 'flex';
+    if (tituloEl) tituloEl.innerText = 'Seleccione producto';
+    return;
+  }
+
+  // Buscar datos del producto para actualizar foto y título
+  const prod = await db.productos.get(codProd);
+  if (prod) {
+    if (tituloEl) tituloEl.innerText = prod.detalle;
+    if (prod.foto_path) {
+      if (imgEl) { imgEl.src = prod.foto_path; imgEl.style.display = 'block'; }
+      if (phEl) phEl.style.display = 'none';
+    } else {
+      if (imgEl) imgEl.style.display = 'none';
+      if (phEl) phEl.style.display = 'flex';
+    }
+  } else {
+    if (tituloEl) tituloEl.innerText = `Cód: ${codProd}`;
+    if (imgEl) imgEl.style.display = 'none';
+    if (phEl) phEl.style.display = 'flex';
+  }
+
+  // Cargar componentes de la receta
+  const componentes = await db.recetas.where('codigo_prod').equals(codProd).toArray();
+  if (componentes.length === 0) {
+    cont.innerHTML = '<div style="color:#aaa; font-size:11px;">Sin insumos cargados para este producto.</div>';
+    return;
+  }
+
+  let html = '<table style="margin-top:0;"><tr><th>Insumo</th><th>Cant.</th><th></th></tr>';
+  for (let c of componentes) {
+    const ins = await db.insumos.get(c.id_insumo);
+    const nombreInsumo = ins ? ins.nombre : 'Insumo #' + c.id_insumo;
+    const unidad = ins ? ins.unidad : '';
+    html += `<tr>
+      <td style="font-size:11px;">${nombreInsumo}</td>
+      <td style="font-size:11px; font-weight:bold; color:#00e676;">${c.cantidad_usada} ${unidad}</td>
+      <td style="text-align:center;"><button class="btn btn-red" style="padding:1px 5px; font-size:10px; margin:0;" onclick="eliminarIngredienteReceta('${codProd}', ${c.id_insumo})">X</button></td>
+    </tr>`;
+  }
+  cont.innerHTML = html + '</table>';
 }

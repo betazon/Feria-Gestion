@@ -152,7 +152,7 @@
       </p>
     </div>
 
-    <!-- BOTÓN GRANDE Y DIRECTO DE REGISTRO DE VENTA -->
+    <!-- BOTÓN GRANDE DE REGISTRO DE VENTA -->
     <button class="btn btn-green" style="font-size: 18px; padding: 16px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,179,89,0.4);" onclick="mostrarPantalla('pantalla-venta')">
       💰 REGISTRAR VENTA EN FERIA
     </button>
@@ -202,7 +202,7 @@
       <div style="font-size:24px; font-weight:bold; color:#3385ff; width:30px; text-align:center;">🧮</div>
       <div style="flex:1;">
         <button class="btn btn-blue" style="margin:0; text-align:left; padding:8px 12px; font-size:14px;" onclick="mostrarPantalla('pantalla-calculadora-lote')">CALCULADORA DE LOTE Y COMPRAS</button>
-        <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;">Calculá insumos necesarios para fabricar una cantidad x de productos.</span>
+        <span style="font-size:11px; color:#aaa; display:block; margin-top:3px;">Calculá insumos necesarios o cuántas unidades podés fabricar hoy.</span>
       </div>
     </div>
 
@@ -222,6 +222,14 @@
   <!-- PANTALLA 3: REGISTRAR VENTA -->
   <div id="pantalla-venta" class="hidden">
     <h3>REGISTRAR VENTA</h3>
+
+    <!-- TARJETA DE EDUCACIÓN FINANCIERA -->
+    <div class="card" style="border-left: 4px solid #00d9ff; background: #081d24; margin-bottom: 10px;">
+      <p style="margin: 0; font-size: 12px; color: #b3f0ff;">
+        <b>💡 Tip de Venta:</b> Al confirmar la venta, la app descontará las unidades de tu stock y también los insumos de la receta de forma automática.
+      </p>
+    </div>
+
     <input type="text" id="venta-buscar" placeholder="Escriba nombre o código..." oninput="buscarVentaPredictiva(this.value)">
     <div id="venta-sugerencias"></div>
 
@@ -240,6 +248,14 @@
   <!-- PANTALLA 4: REPORTE DIARIO -->
   <div id="pantalla-reporte" class="hidden">
     <h3>REPORTE DE VENTAS DIARIO</h3>
+
+    <!-- TARJETA DE EDUCACIÓN FINANCIERA -->
+    <div class="card" style="border-left: 4px solid #ffb74d; background: #261c0e; margin-bottom: 10px;">
+      <p style="margin: 0; font-size: 12px; color: #ffe0b2;">
+        <b>💰 Educación Financiera:</b> Recordá que <b>Vender no es Ganar</b>. Lo vendido cubre primero tus insumos y materiales (costo). La ganancia es lo que queda limpio para vos.
+      </p>
+    </div>
+
     <input type="date" id="reporte-fecha" onchange="cargarReporteVentas()">
     <div id="reporte-totales" style="color:#00e676; font-weight:bold; margin: 10px 0; text-align:center;">Vendido: $0.00 | Ganancia: $0.00</div>
     <div id="reporte-lista"></div>
@@ -345,11 +361,19 @@
   <!-- PANTALLA 7: GESTIÓN DE INSUMOS -->
   <div id="pantalla-insumos" class="hidden">
     <h3>GESTIÓN DE INSUMOS</h3>
+
+    <!-- TARJETA DE EDUCACIÓN FINANCIERA -->
+    <div class="card" style="border-left: 4px solid #00d9ff; background: #081d24; margin-bottom: 10px;">
+      <p style="margin: 0; font-size: 12px; color: #b3f0ff;">
+        <b>💡 Gestión Inteligente:</b> Si agregás un insumo existente (ej: <i>Harina</i>) a otro precio, la app calcula automáticamente el <b>Precio Promedio Ponderado</b> para cuidar tu margen.
+      </p>
+    </div>
+
     <input type="text" id="insumo-nombre" placeholder="Nombre (Ej: Harina, Cuero)">
     <input type="text" id="insumo-unidad" placeholder="Unidad (kg, g, m, un)">
     <input type="number" id="insumo-costo" placeholder="Costo por unidad ($)">
     <input type="number" id="insumo-stock" placeholder="Stock disponible">
-    <button class="btn btn-green" onclick="guardarInsumo()">GUARDAR INSUMO</button>
+    <button class="btn btn-green" id="btn-guardar-insumo" onclick="guardarInsumo()">GUARDAR INSUMO</button>
     
     <button class="btn btn-blue" style="margin-top: 10px;" onclick="toggleListadoInsumos()">📋 Ver Listado de Insumos Actuales</button>
     <div id="contenedor-lista-insumos" class="hidden" style="margin-top: 10px;"></div>
@@ -358,6 +382,7 @@
   </div>
 
   <!-- PANTALLA 8: FICHA TÉCNICA Y RECETA -->
+  <!-- PANTALLA 8: FICHA TÉCNICA Y RECETA (VISTA EN 2 COLUMNAS) -->
   <div id="pantalla-recetas" class="hidden">
     <h3>FICHA TÉCNICA Y RECETA</h3>
     
@@ -365,16 +390,35 @@
     <input type="text" id="receta-buscar-prod" placeholder="Escriba detalle o código..." oninput="buscarProductoParaReceta(this.value)">
     <div id="receta-sugerencias-prod"></div>
 
-    <input type="text" id="receta-cod-prod" placeholder="Código de Producto Seleccionado / Nuevo" oninput="cargarDetalleRecetaRegistrada()" style="margin-top: 8px;">
+    <input type="text" id="receta-cod-prod" placeholder="Código de Producto Seleccionado" oninput="cargarDetalleRecetaRegistrada()" style="margin-top: 8px;">
     
-    <div class="card">
-      <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Asociar Insumo a la Receta:</h4>
+    <!-- CONTENEDOR EN DOS COLUMNAS: FOTO (IZQ) E INGREDIENTES (DER) -->
+    <div id="receta-vista-previa" class="card" style="display:flex; gap:12px; align-items:flex-start; background:#181818; border-left:4px solid #800080; margin-top:10px; flex-wrap:wrap;">
+      
+      <!-- Columna Izquierda: Foto y Datos Generales -->
+      <div style="flex: 1; min-width: 110px; text-align:center;">
+        <img id="receta-foto-preview" src="" style="width:100%; max-width:110px; height:110px; object-fit:cover; border-radius:8px; border:1px solid #444; display:none; margin:0 auto 6px auto;">
+        <div id="receta-foto-placeholder" style="width:100px; height:100px; background:#222; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; color:#777; margin:0 auto 6px auto; border:1px dashed #444;">Sin Foto</div>
+        <div id="receta-prod-titulo" style="font-size:12px; font-weight:bold; color:#00d9ff;">Seleccione producto</div>
+      </div>
+
+      <!-- Columna Derecha: Tabla de Ingredientes Cargados -->
+      <div style="flex: 2; min-width: 180px;">
+        <h4 style="margin:0 0 6px 0; font-size:13px; color:#00e676; text-align:left;">Ingredientes / Materiales:</h4>
+        <div id="receta-ingredientes-lista" style="font-size:12px;">
+          <span style="color:#aaa; font-size:11px;">Busque un producto para ver sus componentes.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FORMULARIO PARA ASOCIAR INSUMOS -->
+    <div class="card" style="margin-top:10px;">
+      <h4 style="margin:0 0 8px 0; font-size:13px; text-align:left; color:#ccc;">+ Agregar Insumo a la Receta:</h4>
       <select id="receta-select-insumo"></select>
       <input type="number" step="0.01" id="receta-cant-usada" placeholder="Cantidad usada por 1 unidad de producto">
       <button class="btn btn-purple" onclick="vincularIngrediente()">Vincular Insumo a la Receta</button>
     </div>
-
-    <div id="receta-ingredientes-lista" class="card" style="margin-top:5px;"></div>
     
     <button class="btn btn-orange" style="margin-top:10px;" onclick="mostrarPantalla('pantalla-nuevo')">CONTINUAR AL PASO 3: GUARDAR PRODUCTO ➔</button>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
@@ -394,6 +438,7 @@
       <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Cantidad que querés fabricar:</h4>
       <input type="number" id="receta-lote" value="1" placeholder="Cantidad a producir (ej: 10, 50)">
       <button class="btn btn-blue" onclick="calcularEscandallo()">CALCULAR PRESUPUESTO Y MATERIALES</button>
+      <button class="btn btn-purple" style="margin-top:8px;" onclick="calcularMaximoProducible()">🔍 ¿Cuántos puedo fabricar con mi stock actual?</button>
     </div>
 
     <div id="receta-resultado-tabla"></div>
