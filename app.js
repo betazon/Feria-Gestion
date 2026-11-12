@@ -8,11 +8,73 @@ db.version(1).stores({
   configuracion: 'clave, valor'
 });
 
+// Versión 2: historial de compras de insumos y de producción
+db.version(2).stores({
+  productos: 'codigo, detalle, precio_costo, precio_ref, stock, tipo, foto_path',
+  ventas: '++id, fecha, codigo, detalle, costo_unit, precio_venta, cantidad, ganancia',
+  insumos: '++id, nombre, unidad, costo_unitario, stock',
+  recetas: '[codigo_prod+id_insumo], codigo_prod, id_insumo, cantidad_usada',
+  configuracion: 'clave, valor',
+  compras: '++id, fecha, id_insumo',
+  producciones: '++id, fecha'
+});
+
 let productoSeleccionadoVenta = null;
 let filtroConsultaActual = 'todos';
 let ultimosFaltantesCompras = [];
 let chartVentasInstancia = null;
 let insumoEnEdicionId = null;
+
+// ===== FECHAS EN HORA LOCAL =====
+// Antes se guardaba toISOString() (UTC): en Argentina, las ventas hechas despues de las 21:00
+// quedaban con la fecha del dia siguiente. Ahora se guarda la hora local del celular.
+function pad2(n) { return String(n).padStart(2, '0'); }
+function fechaLocalISO(d = new Date()) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+function hoyLocal(d = new Date()) { return fechaLocalISO(d).substring(0, 10); }
+// Las ventas viejas (guardadas en UTC, con "Z") se convierten a hora local al leerlas
+function normalizarFecha(f) {
+  if (typeof f !== 'string') return '';
+  if (/T.*(Z|[+-]\d\d:?\d\d)$/.test(f)) {
+    const d = new Date(f);
+    if (!isNaN(d.getTime())) return fechaLocalISO(d);
+  }
+  return f;
+}
+
+// ===== UNIDADES DE MEDIDA =====
+// Cada linea de receta guarda la unidad en que se usa el insumo (unidad_uso).
+// Al descontar stock y calcular costos se convierte a la unidad del insumo.
+const UNIDADES_USO = { kg: ['kg', 'g'], g: ['g', 'kg'], litros: ['litros', 'ml'], m: ['m', 'cm'], un: ['un'] };
+const FACTORES_UNIDAD = { 'g>kg': 0.001, 'kg>g': 1000, 'ml>litros': 0.001, 'litros>ml': 1000, 'cm>m': 0.01, 'm>cm': 100 };
+
+function normUnidad(u) {
+  u = (u || '').toString().toLowerCase().trim();
+  if (['l', 'lt', 'lts', 'litro', 'litros'].includes(u)) return 'litros';
+  if (['kg', 'kilo', 'kilos'].includes(u)) return 'kg';
+  if (['g', 'gr', 'gramo', 'gramos'].includes(u)) return 'g';
+  if (['m', 'metro', 'metros'].includes(u)) return 'm';
+  if (['un', 'u', 'unidad', 'unidades'].includes(u)) return 'un';
+  return u;
+}
+function unidadUsoDe(comp, ins) {
+  if (comp.unidad_uso) return normUnidad(comp.unidad_uso);
+  const ui = normUnidad(ins && ins.unidad);
+  // Compatibilidad con recetas viejas (sin unidad_uso): kg con cantidad > 10 se interpretaba como gramos
+  if (ui === 'kg' && comp.cantidad_usada > 10) return 'g';
+  return ui;
+}
+function aUnidadInsumo(cant, uso, unidadInsumo) {
+  const u = normUnidad(uso), i = normUnidad(unidadInsumo);
+  if (u === i) return cant;
+  const f = FACTORES_UNIDAD[`${u}>${i}`];
+  return f === undefined ? cant : cant * f;
+}
+function cantidadEnUnidadInsumo(comp, ins) {
+  return aUnidadInsumo(comp.cantidad_usada, unidadUsoDe(comp, ins), ins.unidad);
+}
+function redondear(n) { return Math.round(n * 1e6) / 1e6; }
 
 // Lista de Rubros / Publicidades
 const DICCIONARIO_RUBROS = {
@@ -27,8 +89,9 @@ const DICCIONARIO_RUBROS = {
 // Control de navegación entre pantallas
 function mostrarPantalla(id) {
   const ids = [
-    'pantalla-bienvenida', 'pantalla-portada', 'pantalla-menu', 'pantalla-venta', 'pantalla-reporte',
-    'pantalla-reporte-general', 'pantalla-consulta', 'pantalla-nuevo', 'pantalla-insumos', 
+    'pantalla-bienvenida', 'pantalla-portada', 'pantalla-menu', 'pantalla-armar', 'pantalla-reportes-menu', 'pantalla-mas',
+    'pantalla-venta', 'pantalla-producir', 'pantalla-comprar', 'pantalla-reporte',
+    'pantalla-reporte-general', 'pantalla-consulta', 'pantalla-nuevo', 'pantalla-insumos',
     'pantalla-recetas', 'pantalla-calculadora-lote', 'pantalla-grilla', 'pantalla-backup', 'pantalla-borrar'
   ];
 
@@ -40,15 +103,18 @@ function mostrarPantalla(id) {
   const activo = document.getElementById(id);
   if (activo) activo.classList.remove('hidden');
 
-  if (id === 'pantalla-menu') cargarMenu();
+  if (['pantalla-menu', 'pantalla-armar', 'pantalla-mas'].includes(id)) cargarMenu();
   if (id === 'pantalla-reporte') {
-    document.getElementById('reporte-fecha').value = new Date().toISOString().split('T')[0];
+    document.getElementById('reporte-fecha').value = hoyLocal();
     cargarReporteVentas();
   }
   if (id === 'pantalla-reporte-general') actualizarReporteGeneral();
   if (id === 'pantalla-consulta') cargarConsultaStock();
   if (id === 'pantalla-recetas') cargarOpcionesRecetas();
   if (id === 'pantalla-grilla') inicializarGrilla();
+  if (id === 'pantalla-comprar') cargarPantallaCompra();
+  if (id === 'pantalla-producir') cargarPantallaProduccion();
+  window.scrollTo(0, 0);
 }
 
 // Validación de primer inicio y verificación de publicidad
@@ -106,26 +172,31 @@ async function cambiarRubro() {
 }
 
 async function cargarMenu() {
-  const rubro = await obtenerRubro();
-  document.getElementById('lbl-menu-titulo').innerText = `MENÚ PRINCIPAL (${rubro.toUpperCase()})`;
-  document.getElementById('btn-cambiar-rubro').innerText = `Modo activo: ${rubro.charAt(0).toUpperCase() + rubro.slice(1)} (Toca para cambiar)`;
-  
-  const seccionProductor = document.getElementById('seccion-pasos-productor');
-  const seccionGrilla = document.getElementById('seccion-grilla-revendedor');
-  const seccionCalcExtra = document.getElementById('seccion-calculadora-extra');
-  const numPasoProd = document.getElementById('num-paso-producto');
+  const rubro = await obtenerRubro();   // 'productor' o 'revendedor'
+  const esProductor = rubro === 'productor';
+  const mostrar = (id, ver) => {
+    const el = document.getElementById(id);
+    if (el) el.classList[ver ? 'remove' : 'add']('hidden');
+  };
 
-  if (rubro === 'productor') {
-    if (seccionProductor) seccionProductor.classList.remove('hidden');
-    if (seccionGrilla) seccionGrilla.classList.add('hidden');
-    if (seccionCalcExtra) seccionCalcExtra.classList.remove('hidden');
-    if (numPasoProd) numPasoProd.innerText = "3️⃣";
-  } else {
-    if (seccionProductor) seccionProductor.classList.add('hidden');
-    if (seccionGrilla) seccionGrilla.classList.remove('hidden');
-    if (seccionCalcExtra) seccionCalcExtra.classList.add('hidden');
-    if (numPasoProd) numPasoProd.innerText = "1️⃣";
+  mostrar('btn-menu-producir', esProductor);
+  mostrar('btn-menu-comprar', esProductor);
+  mostrar('seccion-pasos-productor', esProductor);
+  mostrar('seccion-calculadora-extra', esProductor);
+  mostrar('seccion-grilla-revendedor', !esProductor);
+
+  const num = document.getElementById('num-paso-producto');
+  if (num) num.innerText = esProductor ? '3️⃣' : '1️⃣';
+
+  const btnModo = document.getElementById('btn-cambiar-rubro');
+  if (btnModo) {
+    btnModo.innerHTML = esProductor
+      ? '<span class="ico">🔄</span><span>SOY PRODUCTOR<small>Fabrico lo que vendo · tocá para cambiar a revendedor</small></span>'
+      : '<span class="ico">🔄</span><span>SOY REVENDEDOR<small>Vendo lo que compro · tocá para cambiar a productor</small></span>';
   }
+
+  // Ayuda de primer uso: solo aparece mientras no haya ningún producto cargado
+  mostrar('menu-ayuda', (await db.productos.count()) === 0);
 }
 
 async function validarYIrARecetas() {
@@ -195,59 +266,55 @@ function seleccionarProductoVenta(p) {
 // CONFIRMAR VENTA Y DESCONTAR INSUMOS AUTOMÁTICAMENTE
 async function validarYConfirmarVenta() {
   if (!productoSeleccionadoVenta) return alert("Seleccione un producto primero.");
-  
-  const cant = parseInt(document.getElementById('venta-cant').value || 1);
-  const pVenta = parseFloat(document.getElementById('venta-precio').value || 0);
-  const stockNuevo = productoSeleccionadoVenta.stock - cant;
 
+  const cant = Number(document.getElementById('venta-cant').value);
+  const pVenta = parseFloat(document.getElementById('venta-precio').value);
+  if (!Number.isInteger(cant) || cant <= 0) return alert("La cantidad tiene que ser un número entero mayor que 0.");
+  if (!Number.isFinite(pVenta) || pVenta < 0) return alert("Ingresá un precio de venta válido.");
+
+  const codigo = productoSeleccionadoVenta.codigo;
+  const prodActual = await db.productos.get(codigo);
+  if (!prodActual) return alert("Ese producto ya no existe.");
+
+  const stockNuevo = prodActual.stock - cant;
   if (stockNuevo < 0) {
-    if (!confirm(`⚠️ ¡Stock insuficiente!\nStock actual: ${productoSeleccionadoVenta.stock}\nQuedará en: ${stockNuevo}\n¿Desea vender de todos modos?`)) {
+    if (!confirm(`⚠️ ¡Stock insuficiente!\nStock actual: ${prodActual.stock}\nQuedará en: ${stockNuevo}\n\nSi ya fabricaste más, primero anotalo en PRODUCIR.\n¿Querés vender de todos modos?`)) {
       return;
     }
   }
 
-  // Descuento automático de insumos según receta
-  const componentesReceta = await db.recetas.where('codigo_prod').equals(productoSeleccionadoVenta.codigo).toArray();
-
-  for (let comp of componentesReceta) {
-    const insumo = await db.insumos.get(comp.id_insumo);
-    if (insumo) {
-      let cantidadADescontar = comp.cantidad_usada * cant;
-
-      // Conversión automática de gramos a kilos si el insumo está en kg y la receta usó gramos (>10)
-      const unidadInsumo = insumo.unidad.toLowerCase();
-      if ((unidadInsumo === 'kg' || unidadInsumo === 'kilo' || unidadInsumo === 'kilos') && comp.cantidad_usada > 10) {
-        cantidadADescontar = (comp.cantidad_usada / 1000) * cant;
-      }
-
-      const nuevoStockInsumo = Math.max(0, insumo.stock - cantidadADescontar);
-      await db.insumos.update(insumo.id, { stock: nuevoStockInsumo });
-    }
+  // Todo o nada: si algo falla, no se modifica ni el stock ni las ventas
+  try {
+    await db.transaction('rw', db.productos, db.ventas, async () => {
+      const prod = await db.productos.get(codigo);
+      await db.ventas.add({
+        fecha: fechaLocalISO(),
+        codigo: prod.codigo,
+        detalle: prod.detalle,
+        costo_unit: prod.precio_costo,
+        precio_venta: pVenta,
+        cantidad: cant,
+        ganancia: (pVenta - prod.precio_costo) * cant
+      });
+      await db.productos.update(codigo, { stock: prod.stock - cant });
+    });
+  } catch (err) {
+    return alert("No se pudo registrar la venta. No se modificó nada.\n" + err.message);
   }
 
-  await db.ventas.add({
-    fecha: new Date().toISOString(),
-    codigo: productoSeleccionadoVenta.codigo,
-    detalle: productoSeleccionadoVenta.detalle,
-    costo_unit: productoSeleccionadoVenta.precio_costo,
-    precio_venta: pVenta,
-    cantidad: cant,
-    ganancia: (pVenta - productoSeleccionadoVenta.precio_costo) * cant
-  });
-
-  await db.productos.update(productoSeleccionadoVenta.codigo, { stock: stockNuevo });
-  alert("✅ Venta registrada e insumos descontados del stock automáticamente.");
+  alert("✅ Venta registrada.");
 
   document.getElementById('venta-buscar').value = '';
   document.getElementById('venta-precio').value = '';
   document.getElementById('venta-cant').value = '1';
+  document.getElementById('venta-sugerencias').innerHTML = '';
   productoSeleccionadoVenta = null;
 }
 
 async function cargarReporteVentas() {
   const fechaSel = document.getElementById('reporte-fecha').value;
   const ventas = await db.ventas.toArray();
-  const filtradas = ventas.filter(v => v.fecha.startsWith(fechaSel));
+  const filtradas = ventas.filter(v => normalizarFecha(v.fecha).startsWith(fechaSel));
 
   let totalVendido = 0;
   let totalGanancia = 0;
@@ -258,7 +325,7 @@ async function cargarReporteVentas() {
     totalVendido += subtotal;
     totalGanancia += v.ganancia;
     html += `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
-      <td>${v.fecha.substring(11, 16)}</td><td>${v.detalle}</td><td>${v.cantidad}</td><td>$${subtotal.toFixed(2)}</td><td>$${v.ganancia.toFixed(2)}</td>
+      <td>${normalizarFecha(v.fecha).substring(11, 16)}</td><td>${v.detalle}</td><td>${v.cantidad}</td><td>$${subtotal.toFixed(2)}</td><td>$${v.ganancia.toFixed(2)}</td>
     </tr>`;
   });
 
@@ -280,8 +347,8 @@ async function actualizarReporteGeneral() {
   let totales = [];
 
   if (periodo === 'dia') {
-    const hoyStr = ahora.toISOString().split('T')[0];
-    const ventasHoy = ventas.filter(v => v.fecha.startsWith(hoyStr));
+    const hoyStr = hoyLocal(ahora);
+    const ventasHoy = ventas.filter(v => normalizarFecha(v.fecha).startsWith(hoyStr));
     const horasMap = {};
     for (let h = 8; h <= 22; h += 2) {
       const horaLabel = `${h.toString().padStart(2, '0')}:00`;
@@ -289,7 +356,7 @@ async function actualizarReporteGeneral() {
     }
 
     ventasHoy.forEach(v => {
-      const hora = parseInt(v.fecha.substring(11, 13));
+      const hora = parseInt(normalizarFecha(v.fecha).substring(11, 13), 10);
       const bloque = `${(Math.floor(hora / 2) * 2).toString().padStart(2, '0')}:00`;
       if (horasMap[bloque] !== undefined) {
         horasMap[bloque] += (v.cantidad * v.precio_venta);
@@ -303,11 +370,11 @@ async function actualizarReporteGeneral() {
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(ahora.getDate() - i);
-      const fechaStr = d.toISOString().split('T')[0];
+      const fechaStr = hoyLocal(d);
       const diaNombre = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' });
       
       const totalDia = ventas
-        .filter(v => v.fecha.startsWith(fechaStr))
+        .filter(v => normalizarFecha(v.fecha).startsWith(fechaStr))
         .reduce((sum, v) => sum + (v.cantidad * v.precio_venta), 0);
 
       etiquetas.push(diaNombre);
@@ -414,7 +481,7 @@ async function mostrarFichaProducto(prod) {
     for (let c of componentes) {
       const ins = await db.insumos.get(c.id_insumo);
       const nombre = ins ? ins.nombre : 'Insumo #' + c.id_insumo;
-      const unidad = ins ? ins.unidad : '';
+      const unidad = ins ? unidadUsoDe(c, ins) : '';
       html += `<li>${nombre}: <b>${c.cantidad_usada} ${unidad}</b></li>`;
     }
     contIng.innerHTML = html + '</ul>';
@@ -454,7 +521,7 @@ async function cargarConsultaStock(tipo) {
       for (let c of componentes) {
         const ins = await db.insumos.get(c.id_insumo);
         const nombreIns = ins ? ins.nombre : 'Insumo';
-        const unidadIns = ins ? ins.unidad : '';
+        const unidadIns = ins ? unidadUsoDe(c, ins) : '';
         partes.push(`${c.cantidad_usada} ${unidadIns} de ${nombreIns}`);
       }
       listaIngredientesTxt = partes.join(' • ');
@@ -596,7 +663,7 @@ async function importarDesdeEscandallo(mostrarAlerta = true) {
   for (let c of componentes) {
     const ins = await db.insumos.get(c.id_insumo);
     if (ins) {
-      costoCalculado += ins.costo_unitario * c.cantidad_usada;
+      costoCalculado += ins.costo_unitario * cantidadEnUnidadInsumo(c, ins);
     }
   }
 
@@ -658,98 +725,24 @@ async function toggleListadoInsumos() {
   contenedor.classList.remove('hidden');
 }
 
-async function cargarInsumoParaEditar(id) {
-  const ins = await db.insumos.get(id);
-  if (!ins) return;
-
-  insumoEnEdicionId = ins.id;
-  document.getElementById('insumo-nombre').value = ins.nombre;
-  document.getElementById('insumo-unidad').value = ins.unidad;
-  document.getElementById('insumo-costo').value = ins.costo_unitario;
-  document.getElementById('insumo-stock').value = ins.stock;
-
-  const btnGuardar = document.getElementById('btn-guardar-insumo');
-  if (btnGuardar) btnGuardar.innerText = "MODIFICAR INSUMO";
-
-  document.getElementById('contenedor-lista-insumos').classList.add('hidden');
-}
-
-async function guardarInsumo() {
-  const nombre = document.getElementById('insumo-nombre').value.trim();
-  const unidad = document.getElementById('insumo-unidad').value.trim().toLowerCase() || 'un';
-  const costoUnitarioNuevo = parseFloat(document.getElementById('insumo-costo').value || 0);
-  const stockNuevo = parseFloat(document.getElementById('insumo-stock').value || 0);
-
-  if (!nombre) return alert("Ingrese el nombre del ingrediente o insumo.");
-
-  if (insumoEnEdicionId) {
-    await db.insumos.update(insumoEnEdicionId, { 
-      nombre, 
-      unidad, 
-      costo_unitario: costoUnitarioNuevo, 
-      stock: stockNuevo 
-    });
-    alert("✅ Insumo modificado correctamente.");
-    insumoEnEdicionId = null;
-    const btnGuardar = document.getElementById('btn-guardar-insumo');
-    if (btnGuardar) btnGuardar.innerText = "GUARDAR INSUMO";
-  } else {
-    const insumosExistentes = await db.insumos
-      .filter(i => i.nombre.toLowerCase() === nombre.toLowerCase())
-      .toArray();
-
-    if (insumosExistentes.length > 0) {
-      const insumoExistente = insumosExistentes[0];
-
-      const valorStockPrevio = insumoExistente.stock * insumoExistente.costo_unitario;
-      const valorStockIngresado = stockNuevo * costoUnitarioNuevo;
-      const stockTotalActualizado = insumoExistente.stock + stockNuevo;
-      
-      const nuevoCostoPromedioPonderado = stockTotalActualizado > 0 
-        ? (valorStockPrevio + valorStockIngresado) / stockTotalActualizado 
-        : costoUnitarioNuevo;
-
-      await db.insumos.update(insumoExistente.id, {
-        stock: stockTotalActualizado,
-        costo_unitario: nuevoCostoPromedioPonderado,
-        unidad: unidad
-      });
-
-      alert(`¡Insumo "${insumoExistente.nombre}" consolidado!\n\n` +
-            `• Stock total actualizado: ${stockTotalActualizado} ${unidad}\n` +
-            `• Nuevo Costo Promedio Ponderado: $${nuevoCostoPromedioPonderado.toFixed(2)} / ${unidad}`);
-
-    } else {
-      await db.insumos.add({
-        nombre,
-        unidad,
-        costo_unitario: costoUnitarioNuevo,
-        stock: stockNuevo
-      });
-
-      alert("¡Insumo registrado correctamente!");
-    }
-  }
-
-  document.getElementById('insumo-nombre').value = '';
-  document.getElementById('insumo-costo').value = '';
-  document.getElementById('insumo-stock').value = '';
-  cargarOpcionesRecetas();
-
-  const contenedor = document.getElementById('contenedor-lista-insumos');
-  if (!contenedor.classList.contains('hidden')) {
-    contenedor.classList.add('hidden');
-    toggleListadoInsumos();
-  }
-}
-
 async function cargarOpcionesRecetas() {
   const insumos = await db.insumos.toArray();
   const sel = document.getElementById('receta-select-insumo');
   if (sel) {
-    sel.innerHTML = '<option value="">-- Seleccionar Insumo --</option>' + 
+    sel.innerHTML = '<option value="">-- Seleccionar Insumo --</option>' +
       insumos.map(i => `<option value="${i.id}">${i.nombre} (${i.unidad}) - $${i.costo_unitario.toFixed(2)}/${i.unidad}</option>`).join('');
   }
+  await actualizarUnidadesReceta();
+}
+
+// Muestra solo las unidades compatibles con el insumo elegido (kg -> kg o g, litros -> litros o ml, etc.)
+async function actualizarUnidadesReceta() {
+  const selUnidad = document.getElementById('receta-unidad-uso');
+  if (!selUnidad) return;
+  const id = parseInt(document.getElementById('receta-select-insumo').value, 10);
+  const ins = id ? await db.insumos.get(id) : null;
+  const opciones = ins ? (UNIDADES_USO[normUnidad(ins.unidad)] || [ins.unidad]) : [];
+  selUnidad.innerHTML = opciones.map(u => `<option value="${u}">${u}</option>`).join('');
 }
 
 async function buscarProductoParaReceta(texto) {
@@ -773,13 +766,6 @@ async function buscarProductoParaReceta(texto) {
     b.onclick = () => seleccionarProductoParaReceta(p);
     cont.appendChild(b);
   });
-}
-
-function seleccionarProductoParaReceta(p) {
-  document.getElementById('receta-sugerencias-prod').innerHTML = '';
-  document.getElementById('receta-buscar-prod').value = p.detalle;
-  document.getElementById('receta-cod-prod').value = p.codigo;
-  cargarDetalleRecetaRegistrada();
 }
 
 async function buscarProductoParaCalculadoraLote(texto) {
@@ -811,45 +797,19 @@ async function buscarProductoParaCalculadoraLote(texto) {
 
 async function vincularIngrediente() {
   const codProd = document.getElementById('receta-cod-prod').value.trim();
-  const idInsumo = parseInt(document.getElementById('receta-select-insumo').value);
+  const idInsumo = parseInt(document.getElementById('receta-select-insumo').value, 10);
   const cantUsada = parseFloat(document.getElementById('receta-cant-usada').value || 0);
+  const selUnidad = document.getElementById('receta-unidad-uso');
 
-  if (!codProd || !idInsumo || cantUsada <= 0) return alert("Complete código de producto, insumo y cantidad.");
-  
-  await db.recetas.put({ codigo_prod: codProd, id_insumo: idInsumo, cantidad_usada: cantUsada });
+  if (!codProd || !idInsumo || !(cantUsada > 0)) return alert("Complete código de producto, insumo y cantidad.");
+
+  const ins = await db.insumos.get(idInsumo);
+  const unidadUso = (selUnidad && selUnidad.value) || (ins ? ins.unidad : 'un');
+
+  await db.recetas.put({ codigo_prod: codProd, id_insumo: idInsumo, cantidad_usada: cantUsada, unidad_uso: unidadUso });
   alert("Insumo vinculado a la receta.");
   document.getElementById('receta-cant-usada').value = '';
   cargarDetalleRecetaRegistrada();
-}
-
-async function cargarDetalleRecetaRegistrada() {
-  const codProd = document.getElementById('receta-cod-prod').value.trim();
-  const cont = document.getElementById('receta-ingredientes-lista');
-  if (!cont) return;
-
-  if (!codProd) {
-    cont.innerHTML = '';
-    return;
-  }
-
-  const componentes = await db.recetas.where('codigo_prod').equals(codProd).toArray();
-  if (componentes.length === 0) {
-    cont.innerHTML = '<div style="color:#aaa; font-size:12px; margin-top:5px;">Sin insumos cargados para este producto.</div>';
-    return;
-  }
-
-  let html = '<table><tr><th>Insumo</th><th>Cant. Base</th><th>Acción</th></tr>';
-  for (let c of componentes) {
-    const ins = await db.insumos.get(c.id_insumo);
-    const nombreInsumo = ins ? ins.nombre : 'Insumo ' + c.id_insumo;
-    const unidad = ins ? ins.unidad : '';
-    html += `<tr>
-      <td>${nombreInsumo}</td>
-      <td>${c.cantidad_usada} ${unidad}</td>
-      <td><button class="btn btn-red" style="padding:2px 6px; font-size:11px;" onclick="eliminarIngredienteReceta('${codProd}', ${c.id_insumo})">X</button></td>
-    </tr>`;
-  }
-  cont.innerHTML = html + '</table>';
 }
 
 async function eliminarIngredienteReceta(codProd, idInsumo) {
@@ -859,8 +819,9 @@ async function eliminarIngredienteReceta(codProd, idInsumo) {
 
 async function calcularEscandallo() {
   const cod = document.getElementById('calc-cod-prod').value.trim() || document.getElementById('receta-cod-prod').value.trim();
-  const lote = parseInt(document.getElementById('receta-lote').value || 1);
+  const lote = parseInt(document.getElementById('receta-lote').value || 1, 10);
   if (!cod) return alert("Ingrese un código de producto.");
+  if (!(lote > 0)) return alert("La cantidad a fabricar tiene que ser mayor que 0.");
 
   const componentes = await db.recetas.where('codigo_prod').equals(cod).toArray();
   if (componentes.length === 0) return alert("No hay una receta o insumos asignados a este código.");
@@ -871,20 +832,21 @@ async function calcularEscandallo() {
 
   for (let c of componentes) {
     const ins = await db.insumos.get(c.id_insumo);
-    if (ins) {
-      const cantTotal = c.cantidad_usada * lote;
-      const subtotalInsumo = ins.costo_unitario * cantTotal;
-      costoUnit += ins.costo_unitario * c.cantidad_usada;
+    if (!ins) continue;
 
-      htmlMateriales += `<tr>
+    const porUnidadEnInsumo = cantidadEnUnidadInsumo(c, ins);   // por 1 producto, en la unidad del insumo
+    const requeridoUso = c.cantidad_usada * lote;                // para mostrar, en la unidad de la receta
+    const requeridoInsumo = porUnidadEnInsumo * lote;            // para costo y stock, en la unidad del insumo
+    costoUnit += ins.costo_unitario * porUnidadEnInsumo;
+
+    htmlMateriales += `<tr>
         <td>${ins.nombre}</td>
-        <td><b>${cantTotal.toFixed(2)} ${ins.unidad}</b></td>
-        <td>$${subtotalInsumo.toFixed(2)}</td>
+        <td><b>${requeridoUso.toFixed(2)} ${unidadUsoDe(c, ins)}</b></td>
+        <td>$${(ins.costo_unitario * requeridoInsumo).toFixed(2)}</td>
       </tr>`;
 
-      if (ins.stock < cantTotal) {
-        ultimosFaltantesCompras.push({ nombre: ins.nombre, faltante: cantTotal - ins.stock, unidad: ins.unidad });
-      }
+    if (ins.stock < requeridoInsumo) {
+      ultimosFaltantesCompras.push({ nombre: ins.nombre, faltante: requeridoInsumo - ins.stock, unidad: ins.unidad });
     }
   }
 
@@ -893,7 +855,7 @@ async function calcularEscandallo() {
 
   document.getElementById('receta-resultado-tabla').innerHTML = htmlMateriales;
   document.getElementById('receta-resultado').innerText = `Costo Unitario: $${costoUnit.toFixed(2)} | Costo Lote (${lote} un): $${costoTotalLote.toFixed(2)}`;
-  
+
   const prodExistente = await db.productos.get(cod);
   if (prodExistente) {
     await db.productos.update(cod, { precio_costo: costoUnit });
@@ -915,16 +877,10 @@ async function calcularMaximoProducible() {
   for (let c of componentes) {
     const ins = await db.insumos.get(c.id_insumo);
     if (ins) {
-      let stockParaCalculo = ins.stock;
-      const unidadInsumo = ins.unidad.toLowerCase();
-
-      // Conversión si el insumo está en kg pero la receta usa gramos (>10g)
-      if ((unidadInsumo === 'kg' || unidadInsumo === 'kilo' || unidadInsumo === 'kilos') && c.cantidad_usada > 10) {
-        stockParaCalculo = ins.stock * 1000;
-      }
-
-      const unidadesConEsteInsumo = Math.floor(stockParaCalculo / c.cantidad_usada);
-      detalleAnalisis += `<li>${ins.nombre}: Tenés ${ins.stock} ${ins.unidad}. Alcanza para <b>${unidadesConEsteInsumo}</b> un.</li>`;
+      const porUnidad = cantidadEnUnidadInsumo(c, ins);   // en la unidad del insumo
+      const unidadesConEsteInsumo = porUnidad > 0 ? Math.floor(redondear(ins.stock / porUnidad)) : Infinity;
+      const alcanza = unidadesConEsteInsumo === Infinity ? 'sin límite' : unidadesConEsteInsumo;
+      detalleAnalisis += `<li>${ins.nombre}: Tenés ${ins.stock} ${ins.unidad}. Alcanza para <b>${alcanza}</b> un.</li>`;
 
       if (unidadesConEsteInsumo < maximoPosible) {
         maximoPosible = unidadesConEsteInsumo;
@@ -1003,65 +959,167 @@ async function ejecutarBorrado() {
 }
 
 // EXPORTAR E IMPORTAR RESPALDOS
-async function exportarArchivoRespaldo() {
+async function armarRespaldo(incluirConfiguracion) {
   const datos = {
     productos: await db.productos.toArray(),
     ventas: await db.ventas.toArray(),
     insumos: await db.insumos.toArray(),
     recetas: await db.recetas.toArray(),
-    configuracion: await db.configuracion.toArray()
+    compras: await db.compras.toArray(),
+    producciones: await db.producciones.toArray()
   };
+  if (incluirConfiguracion) datos.configuracion = await db.configuracion.toArray();
+  return datos;
+}
 
-  const jsonStr = JSON.stringify(datos, null, 2);
-  const blob = new Blob([jsonStr], { type: 'application/json' });
+function descargarArchivo(blob, nombre) {
   const url = URL.createObjectURL(blob);
-  
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Respaldo_Feria_${new Date().toISOString().split('T')[0]}.json`;
+  a.download = nombre;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  
+}
+
+async function exportarArchivoRespaldo() {
+  const datos = await armarRespaldo(true);
+  const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+  descargarArchivo(blob, `Respaldo_Feria_${hoyLocal()}.json`);
   alert("¡Respaldo exportado con éxito a tu carpeta de Descargas!");
 }
 
 async function importarArchivoRespaldo(event) {
-  const archivo = event.target.files[0];
+  const input = event.target;
+  const archivo = input.files[0];
   if (!archivo) return;
 
   const lector = new FileReader();
   lector.onload = async function(e) {
     try {
       const datos = JSON.parse(e.target.result);
-      
-      if (datos.productos) await db.productos.bulkPut(datos.productos);
-      if (datos.ventas) await db.ventas.bulkPut(datos.ventas);
-      if (datos.insumos) await db.insumos.bulkPut(datos.insumos);
-      if (datos.recetas) await db.recetas.bulkPut(datos.recetas);
-      if (datos.configuracion) await db.configuracion.bulkPut(datos.configuracion);
+      const hayDatos = datos && typeof datos === 'object' &&
+        ['productos', 'ventas', 'insumos', 'recetas'].some(k => Array.isArray(datos[k]));
+      if (!hayDatos) throw new Error("El archivo no parece ser un respaldo de esta app.");
 
-      alert("¡Base de datos importada y restaurada correctamente!");
+      if (!confirm("¿Querés importar este respaldo?")) return;
+      const reemplazar = confirm(
+        "¿Cómo querés importarlo?\n\n" +
+        "ACEPTAR = REEMPLAZAR: borra los datos de este celular y deja solo los del archivo.\n\n" +
+        "CANCELAR = COMBINAR: suma los datos del archivo a los que ya tenés (no pisa tus ventas)."
+      );
+
+      const resumen = reemplazar ? await restaurarRespaldoReemplazando(datos) : await restaurarRespaldoCombinando(datos);
+      alert(resumen);
       mostrarPantalla('pantalla-menu');
     } catch (err) {
       alert("Error al leer el archivo de respaldo: " + err.message);
+    } finally {
+      input.value = '';
     }
   };
   lector.readAsText(archivo);
 }
 
+// REEMPLAZAR: las tablas que vienen en el archivo se vacían y se cargan tal cual (conserva los ids)
+async function restaurarRespaldoReemplazando(datos) {
+  const lista = k => Array.isArray(datos[k]) ? datos[k] : [];
+  await db.transaction('rw', db.productos, db.ventas, db.insumos, db.recetas, db.compras, db.producciones, db.configuracion, async () => {
+    for (const k of ['productos', 'ventas', 'insumos', 'recetas', 'compras', 'producciones']) {
+      if (Array.isArray(datos[k])) {
+        await db[k].clear();
+        await db[k].bulkAdd(datos[k]);
+      }
+    }
+    await db.configuracion.bulkPut(lista('configuracion'));
+  });
+  return `✅ Respaldo restaurado: ${lista('productos').length} productos, ${lista('insumos').length} insumos, ${lista('recetas').length} líneas de receta, ${lista('ventas').length} ventas, ${lista('compras').length} compras y ${lista('producciones').length} producciones.`;
+}
+
+// COMBINAR: los ids autoincrementales de otro celular pueden chocar con los de este,
+// así que los insumos se unen por nombre y las ventas se agregan con id nuevo (sin duplicar).
+async function restaurarRespaldoCombinando(datos) {
+  const lista = k => Array.isArray(datos[k]) ? datos[k] : [];
+  let insumosNuevos = 0, ventasNuevas = 0, comprasNuevas = 0, produccionesNuevas = 0;
+
+  await db.transaction('rw', db.productos, db.ventas, db.insumos, db.recetas, db.compras, db.producciones, async () => {
+    await db.productos.bulkPut(lista('productos'));
+
+    const mapaInsumos = {};   // id en el archivo -> id en este celular
+    for (const ins of lista('insumos')) {
+      const nombre = (ins.nombre || '').toLowerCase();
+      const existente = await db.insumos.filter(i => (i.nombre || '').toLowerCase() === nombre).first();
+      if (existente) {
+        mapaInsumos[ins.id] = existente.id;
+      } else {
+        const { id, ...resto } = ins;
+        mapaInsumos[id] = await db.insumos.add(resto);
+        insumosNuevos++;
+      }
+    }
+    const idLocal = idArchivo => mapaInsumos[idArchivo] !== undefined ? mapaInsumos[idArchivo] : idArchivo;
+
+    for (const r of lista('recetas')) {
+      await db.recetas.put({ ...r, id_insumo: idLocal(r.id_insumo) });
+    }
+
+    const claveVenta = v => `${v.fecha}|${v.codigo}|${v.cantidad}|${v.precio_venta}`;
+    const ventasConocidas = new Set((await db.ventas.toArray()).map(claveVenta));
+    for (const v of lista('ventas')) {
+      const k = claveVenta(v);
+      if (ventasConocidas.has(k)) continue;
+      const { id, ...resto } = v;
+      await db.ventas.add(resto);
+      ventasConocidas.add(k);
+      ventasNuevas++;
+    }
+
+    const claveCompra = c => `${c.fecha}|${c.id_insumo}|${c.cantidad}|${c.total}`;
+    const comprasConocidas = new Set((await db.compras.toArray()).map(claveCompra));
+    for (const c of lista('compras')) {
+      const nueva = { ...c, id_insumo: idLocal(c.id_insumo) };
+      const k = claveCompra(nueva);
+      if (comprasConocidas.has(k)) continue;
+      delete nueva.id;
+      await db.compras.add(nueva);
+      comprasConocidas.add(k);
+      comprasNuevas++;
+    }
+
+    const claveProd = p => `${p.fecha}|${JSON.stringify(p.items)}`;
+    const produccionesConocidas = new Set((await db.producciones.toArray()).map(claveProd));
+    for (const p of lista('producciones')) {
+      const k = claveProd(p);
+      if (produccionesConocidas.has(k)) continue;
+      const { id, ...resto } = p;
+      await db.producciones.add(resto);
+      produccionesConocidas.add(k);
+      produccionesNuevas++;
+    }
+  });
+
+  return `✅ Respaldo combinado: ${lista('productos').length} productos procesados, ${insumosNuevos} insumos nuevos, ${ventasNuevas} ventas, ${comprasNuevas} compras y ${produccionesNuevas} producciones nuevas agregadas.`;
+}
+
+// Antes se metia todo el JSON (con fotos) en la URL de WhatsApp, que tiene un limite de largo y fallaba.
+// Ahora se comparte como archivo; si el navegador no puede, se descarga para adjuntarlo a mano.
 async function exportarRespaldoWhatsApp() {
-  const datos = {
-    productos: await db.productos.toArray(),
-    ventas: await db.ventas.toArray(),
-    insumos: await db.insumos.toArray(),
-    recetas: await db.recetas.toArray()
-  };
-  const jsonStr = JSON.stringify(datos);
-  await navigator.clipboard.writeText(jsonStr);
-  alert("Respaldo copiado al portapapeles.");
-  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(jsonStr)}`, '_blank');
+  const datos = await armarRespaldo(false);   // sin perfil (correo/WhatsApp)
+  const nombre = `Respaldo_Feria_${hoyLocal()}.json`;
+  const archivo = new File([JSON.stringify(datos)], nombre, { type: 'application/json' });
+
+  if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+    try {
+      await navigator.share({ files: [archivo], title: 'Respaldo Feria' });
+    } catch (err) {
+      if (err.name !== 'AbortError') alert("No se pudo compartir el respaldo: " + err.message);
+    }
+    return;
+  }
+
+  descargarArchivo(archivo, nombre);
+  alert("Tu navegador no permite compartir archivos directamente.\n\nEl respaldo se descargó: adjuntalo desde WhatsApp (clip 📎 → Documento).");
 }
 
 // PUBLICIDAD Y BANNER ROTATIVO
@@ -1171,7 +1229,7 @@ async function cargarDetalleRecetaRegistrada() {
   for (let c of componentes) {
     const ins = await db.insumos.get(c.id_insumo);
     const nombreInsumo = ins ? ins.nombre : 'Insumo #' + c.id_insumo;
-    const unidad = ins ? ins.unidad : '';
+    const unidad = ins ? unidadUsoDe(c, ins) : '';
     html += `<tr>
       <td style="font-size:11px;">${nombreInsumo}</td>
       <td style="font-size:11px; font-weight:bold; color:#00e676;">${c.cantidad_usada} ${unidad}</td>
@@ -1293,3 +1351,309 @@ async function guardarInsumo() {
     toggleListadoInsumos();
   }
 }
+
+// =====================================================================
+// AYUDAS PARA LAS PANTALLAS NUEVAS
+// =====================================================================
+function esc(t) {
+  return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g,
+    ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function llenarSelect(sel, items, placeholder) {
+  sel.innerHTML = '';
+  if (placeholder) sel.appendChild(new Option(placeholder, ''));
+  items.forEach(([valor, texto]) => sel.appendChild(new Option(texto, valor)));
+}
+
+function formatearFechaHora(f) {
+  const n = normalizarFecha(f);
+  return n ? `${n.substring(8, 10)}/${n.substring(5, 7)} ${n.substring(11, 16)}` : '';
+}
+
+// =====================================================================
+// COMPRAR INSUMOS
+// Suma lo comprado al stock y actualiza el costo (promedio entre lo que había y lo nuevo).
+// =====================================================================
+function calcularCompra(ins, cant, unidad, total) {
+  const cantInsumo = aUnidadInsumo(cant, unidad, ins.unidad);    // lo comprado, en la unidad del insumo
+  const stockNuevo = redondear(ins.stock + cantInsumo);
+  const costoNuevo = stockNuevo > 0
+    ? redondear((ins.stock * ins.costo_unitario + total) / stockNuevo)
+    : ins.costo_unitario;
+  return { cantInsumo, stockNuevo, costoNuevo };
+}
+
+async function cargarPantallaCompra() {
+  const insumos = (await db.insumos.toArray()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  llenarSelect(document.getElementById('compra-insumo'),
+    insumos.map(i => [i.id, `${i.nombre} (${i.unidad})`]), '-- Elegí el insumo --');
+  document.getElementById('compra-cant').value = '';
+  document.getElementById('compra-total').value = '';
+  await actualizarUnidadesCompra();
+  await cargarHistorialCompras();
+}
+
+async function actualizarUnidadesCompra() {
+  const id = parseInt(document.getElementById('compra-insumo').value, 10);
+  const ins = id ? await db.insumos.get(id) : null;
+  const opciones = ins ? (UNIDADES_USO[normUnidad(ins.unidad)] || [ins.unidad]) : [];
+  llenarSelect(document.getElementById('compra-unidad'), opciones.map(u => [u, u]));
+  await actualizarVistaCompra();
+}
+
+async function actualizarVistaCompra() {
+  const vista = document.getElementById('compra-vista');
+  if (!vista) return;
+  const id = parseInt(document.getElementById('compra-insumo').value, 10);
+  const cant = parseFloat(document.getElementById('compra-cant').value);
+  const total = parseFloat(document.getElementById('compra-total').value);
+  const ins = id ? await db.insumos.get(id) : null;
+
+  if (!ins || !(cant > 0) || !(total >= 0)) {
+    vista.innerText = 'Completá el insumo, la cantidad y lo que pagaste para ver cómo queda.';
+    return;
+  }
+  const unidad = document.getElementById('compra-unidad').value || ins.unidad;
+  const c = calcularCompra(ins, cant, unidad, total);
+  vista.innerHTML = `Vas a tener <b>${c.stockNuevo} ${esc(ins.unidad)}</b> de ${esc(ins.nombre)}.<br>` +
+                    `Costo actual: <b>$${c.costoNuevo.toFixed(2)}</b> por ${esc(ins.unidad)}`;
+}
+
+async function registrarCompra(id, cant, unidad, total) {
+  let resultado;
+  await db.transaction('rw', db.insumos, db.compras, async () => {
+    const ins = await db.insumos.get(id);
+    if (!ins) throw new Error("El insumo ya no existe.");
+    const c = calcularCompra(ins, cant, unidad, total);
+    await db.insumos.update(id, { stock: c.stockNuevo, costo_unitario: c.costoNuevo });
+    await db.compras.add({
+      fecha: fechaLocalISO(),
+      id_insumo: id,
+      nombre: ins.nombre,
+      cantidad: cant,
+      unidad: unidad,
+      total: total,
+      costo_unit: c.cantInsumo > 0 ? total / c.cantInsumo : 0
+    });
+    resultado = { nombre: ins.nombre, unidad: ins.unidad, stockNuevo: c.stockNuevo, costoNuevo: c.costoNuevo };
+  });
+  return resultado;
+}
+
+async function confirmarCompra() {
+  const id = parseInt(document.getElementById('compra-insumo').value, 10);
+  const cant = Number(document.getElementById('compra-cant').value);
+  const totalTxt = document.getElementById('compra-total').value.trim();
+  const total = Number(totalTxt);
+  const unidad = document.getElementById('compra-unidad').value;
+
+  if (!id) return alert("Elegí qué insumo compraste.");
+  if (!(cant > 0)) return alert("Escribí cuánto compraste (un número mayor que 0).");
+  if (totalTxt === '' || !Number.isFinite(total) || total < 0) return alert("Escribí cuánto pagaste en total.");
+
+  let r;
+  try {
+    r = await registrarCompra(id, cant, unidad, total);
+  } catch (err) {
+    return alert("No se pudo registrar la compra. No se modificó nada.\n" + err.message);
+  }
+
+  alert(`✅ Compra registrada.\n\nAhora tenés ${r.stockNuevo} ${r.unidad} de ${r.nombre}.\nCosto actual: $${r.costoNuevo.toFixed(2)} por ${r.unidad}.`);
+  await cargarPantallaCompra();
+}
+
+async function cargarHistorialCompras() {
+  const cont = document.getElementById('compra-historial');
+  if (!cont) return;
+  const compras = (await db.compras.toArray()).sort((a, b) => b.id - a.id);
+  if (compras.length === 0) { cont.innerHTML = ''; return; }
+
+  const mes = hoyLocal().substring(0, 7);
+  const gastoMes = compras
+    .filter(c => normalizarFecha(c.fecha).startsWith(mes))
+    .reduce((suma, c) => suma + (c.total || 0), 0);
+
+  let html = `<div class="card" style="margin-top:12px;">
+    <h4 style="margin:0 0 6px 0;">Mis últimas compras</h4>
+    <div style="text-align:center; color:#ffb74d; font-weight:bold; margin-bottom:6px;">Gastaste este mes: $${gastoMes.toFixed(2)}</div>
+    <table><tr><th>Fecha</th><th>Insumo</th><th>Cantidad</th><th>Pagué</th></tr>`;
+  compras.slice(0, 10).forEach((c, i) => {
+    html += `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
+      <td>${formatearFechaHora(c.fecha)}</td><td>${esc(c.nombre)}</td>
+      <td>${esc(c.cantidad)} ${esc(c.unidad)}</td><td>$${(c.total || 0).toFixed(2)}</td></tr>`;
+  });
+  cont.innerHTML = html + '</table></div>';
+}
+
+// =====================================================================
+// PRODUCIR
+// Se anota cuánto se fabricó de cada producto: se suma al stock del producto
+// y se descuentan de una vez todos los insumos de las recetas.
+// =====================================================================
+function crearFilaProduccion(p, tieneReceta) {
+  const fila = document.createElement('div');
+  fila.className = 'card fila-produccion';
+  fila.dataset.codigo = p.codigo;
+  fila.dataset.titulo = p.detalle;
+
+  const titulo = document.createElement('div');
+  titulo.style.cssText = 'font-size:17px; font-weight:bold; color:#00d9ff; margin-bottom:2px;';
+  titulo.textContent = p.detalle;
+
+  const sub = document.createElement('div');
+  sub.style.cssText = 'font-size:13px; color:#aaa; margin-bottom:8px;';
+  sub.textContent = `Tenés ${p.stock} en stock` + (tieneReceta ? '' : ' · sin receta: solo suma stock');
+
+  const control = document.createElement('div');
+  control.className = 'stepper';
+
+  const menos = document.createElement('button');
+  menos.type = 'button';
+  menos.className = 'btn btn-gray';
+  menos.textContent = '−';
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = '0';
+  input.step = '1';
+  input.placeholder = '0';
+  input.className = 'inp-produccion';
+  input.setAttribute('inputmode', 'numeric');
+
+  const mas = document.createElement('button');
+  mas.type = 'button';
+  mas.className = 'btn btn-green';
+  mas.textContent = '+';
+
+  const ajustar = d => {
+    const n = Math.max(0, (parseInt(input.value, 10) || 0) + d);
+    input.value = n === 0 ? '' : String(n);
+  };
+  menos.addEventListener('click', () => ajustar(-1));
+  mas.addEventListener('click', () => ajustar(1));
+
+  control.appendChild(menos);
+  control.appendChild(input);
+  control.appendChild(mas);
+  fila.appendChild(titulo);
+  fila.appendChild(sub);
+  fila.appendChild(control);
+  return fila;
+}
+
+async function cargarPantallaProduccion() {
+  const cont = document.getElementById('producir-lista');
+  cont.innerHTML = '';
+  const filtro = document.getElementById('producir-filtro');
+  if (filtro) filtro.value = '';
+
+  const prods = (await db.productos.toArray()).sort((a, b) => a.detalle.localeCompare(b.detalle));
+  if (prods.length === 0) {
+    cont.innerHTML = '<div class="card" style="text-align:center; color:#aaa;">Todavía no cargaste productos.<br>Entrá a <b>MIS PRODUCTOS Y RECETAS</b> para empezar.</div>';
+  } else {
+    const conReceta = new Set((await db.recetas.toArray()).map(r => r.codigo_prod));
+    prods.forEach(p => cont.appendChild(crearFilaProduccion(p, conReceta.has(p.codigo))));
+  }
+  await cargarHistorialProduccion();
+}
+
+function filtrarListaProduccion() {
+  const texto = document.getElementById('producir-filtro').value.trim().toLowerCase();
+  document.getElementById('producir-lista').querySelectorAll('.fila-produccion').forEach(f => {
+    f.style.display = (f.dataset.titulo || '').toLowerCase().includes(texto) ? '' : 'none';
+  });
+}
+
+// Cuánto de cada insumo hace falta para lo que se quiere producir (en la unidad de cada insumo)
+async function calcularNecesidadInsumos(items) {
+  const necesidad = {};   // id_insumo -> cantidad necesaria
+  for (const it of items) {
+    const componentes = await db.recetas.where('codigo_prod').equals(it.codigo).toArray();
+    for (const c of componentes) {
+      const ins = await db.insumos.get(c.id_insumo);
+      if (!ins) continue;
+      necesidad[ins.id] = (necesidad[ins.id] || 0) + cantidadEnUnidadInsumo(c, ins) * it.cantidad;
+    }
+  }
+  const faltantes = [];
+  for (const id of Object.keys(necesidad)) {
+    const ins = await db.insumos.get(Number(id));
+    if (ins.stock < necesidad[id] - 1e-9) {
+      faltantes.push(`• ${ins.nombre}: necesitás ${redondear(necesidad[id])} ${ins.unidad} y tenés ${ins.stock}`);
+    }
+  }
+  return { necesidad, faltantes };
+}
+
+async function registrarProduccion(items, necesidad) {
+  let resumen = '';
+  await db.transaction('rw', db.productos, db.insumos, db.producciones, async () => {
+    for (const id of Object.keys(necesidad)) {
+      const ins = await db.insumos.get(Number(id));
+      if (ins) await db.insumos.update(ins.id, { stock: Math.max(0, redondear(ins.stock - necesidad[id])) });
+    }
+    const hechos = [];
+    for (const it of items) {
+      const p = await db.productos.get(it.codigo);
+      if (!p) continue;
+      await db.productos.update(it.codigo, { stock: p.stock + it.cantidad });
+      hechos.push({ codigo: p.codigo, detalle: p.detalle, cantidad: it.cantidad });
+    }
+    await db.producciones.add({ fecha: fechaLocalISO(), items: hechos });
+    resumen = hechos.map(h => `${h.cantidad} ${h.detalle}`).join(', ');
+  });
+  return resumen;
+}
+
+async function confirmarProduccion() {
+  const filas = document.getElementById('producir-lista').querySelectorAll('.fila-produccion');
+  const items = [];
+  for (const fila of filas) {
+    const txt = fila.querySelector('.inp-produccion').value.trim();
+    if (txt === '') continue;
+    const n = Number(txt);
+    if (!Number.isInteger(n) || n < 0) {
+      return alert(`Revisá la cantidad de "${fila.dataset.titulo}": tiene que ser un número entero.`);
+    }
+    if (n > 0) items.push({ codigo: fila.dataset.codigo, cantidad: n });
+  }
+  if (items.length === 0) return alert("Anotá cuántos fabricaste de al menos un producto.");
+
+  const { necesidad, faltantes } = await calcularNecesidadInsumos(items);
+  if (faltantes.length > 0) {
+    const seguir = confirm(`⚠️ Te faltan insumos:\n\n${faltantes.join('\n')}\n\n¿Querés anotar la producción igual? (esos insumos quedarán en 0)`);
+    if (!seguir) return;
+  }
+
+  let resumen;
+  try {
+    resumen = await registrarProduccion(items, necesidad);
+  } catch (err) {
+    return alert("No se pudo registrar la producción. No se modificó nada.\n" + err.message);
+  }
+
+  const descontoInsumos = Object.keys(necesidad).length > 0;
+  alert(`✅ Producción registrada:\n${resumen}\n\nSe sumó a tu stock${descontoInsumos ? ' y se descontaron los insumos de las recetas' : ''}.`);
+  await cargarPantallaProduccion();
+}
+
+async function cargarHistorialProduccion() {
+  const cont = document.getElementById('producir-historial');
+  if (!cont) return;
+  const prods = (await db.producciones.toArray()).sort((a, b) => b.id - a.id).slice(0, 5);
+  if (prods.length === 0) { cont.innerHTML = ''; return; }
+
+  let html = '<div class="card" style="margin-top:12px;"><h4 style="margin:0 0 6px 0;">Mis últimas producciones</h4>';
+  prods.forEach(p => {
+    const detalle = (p.items || []).map(i => `${esc(i.cantidad)} ${esc(i.detalle)}`).join(', ');
+    html += `<div style="font-size:13px; padding:5px 0; border-top:1px solid #333;"><b style="color:#00e676;">${formatearFechaHora(p.fecha)}</b> — ${detalle}</div>`;
+  });
+  cont.innerHTML = html + '</div>';
+}
+
+// Al elegir un insumo en la receta, se actualizan las unidades disponibles
+document.addEventListener("DOMContentLoaded", () => {
+  const selInsumo = document.getElementById('receta-select-insumo');
+  if (selInsumo) selInsumo.addEventListener('change', actualizarUnidadesReceta);
+});
