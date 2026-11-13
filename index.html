@@ -81,11 +81,27 @@
     .row-even { background-color: #181818; }
     .row-odd { background-color: #101010; }
 
-    /* ===== Interfaz más grande y simple ===== */
-    .btn { min-height: 48px; font-size: 16px; }
-    input, select { font-size: 16px; padding: 12px 10px; }
-    th, td { font-size: 14px; }
-    label { display: block; font-size: 14px; color: #ccc; margin-top: 8px; }
+    /* ===== Interfaz grande y simple (celular vertical) ===== */
+    body { font-size: 17px; padding: 14px; padding-bottom: 70px; }
+    h3 { font-size: 22px; margin: 8px 0 12px; }
+    h4 { font-size: 17px; }
+    .btn { min-height: 56px; font-size: 17px; padding: 14px; border-radius: 10px; }
+    input, select { height: 54px; font-size: 18px; padding: 10px 12px; margin: 4px 0 8px; border-radius: 8px; }
+    input[type="checkbox"] { height: 28px; width: 28px; }
+    label { display: block; font-size: 16px; font-weight: bold; color: #e0e0e0; margin: 12px 0 4px; }
+    .card { padding: 14px; border-radius: 10px; margin-bottom: 12px; }
+    th, td { font-size: 15px; padding: 8px 6px; }
+    .contents { display: contents; }
+    .dos-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+    .menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 12px 0 16px; }
+    .tile { aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; margin: 0; padding: 10px; border: none; border-radius: 16px; color: #fff; font-size: 17px; font-weight: bold; line-height: 1.2; text-align: center; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+    .tile .ico { font-size: 46px; line-height: 1; }
+    .tile small { display: block; font-size: 13px; font-weight: normal; margin-top: 3px; opacity: 0.95; }
+    .tile-wide { grid-column: span 2; aspect-ratio: auto; min-height: 84px; flex-direction: row; gap: 14px; }
+    .tile-wide .ico { font-size: 36px; }
+    .tile:active, .btn:active { transform: scale(0.97); }
+
     .btn-big { display: flex; align-items: center; gap: 14px; text-align: left; min-height: 76px; padding: 12px 16px; margin: 10px 0; font-size: 19px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
     .btn-big .ico { font-size: 32px; width: 42px; text-align: center; flex-shrink: 0; }
     .btn-big small { display: block; font-size: 13px; font-weight: normal; opacity: 0.9; margin-top: 2px; }
@@ -104,22 +120,22 @@
     <div style="text-align:center; margin: 15px 0;">
       <div style="width: 90px; height: 90px; background: #00b359; border-radius: 50%; display: flex; align-items:center; justify-content:center; margin: 0 auto; font-size: 32px; border: 2px solid #fff;">🧵</div>
       <h3 style="color:#00d9ff; margin:10px 0 5px 0;">Gestión Ferial Colaborativa</h3>
-      <p style="font-size:12px; color:#aaa; padding: 0 15px;">Para combatir la invisibilidad de nuestro trabajo. 100% gratis, sin intermediarios y tus datos quedan en tu celular.</p>
+      <p style="font-size:14px; color:#aaa; padding: 0 15px;">Para combatir la invisibilidad de nuestro trabajo. 100% gratis, sin intermediarios y tus datos quedan en tu celular.</p>
     </div>
 
     <div class="card" style="border-left: 4px solid #00b359;">
-      <h4 style="margin:0 0 8px 0; font-size:13px; text-align:left; color:#00e676;">Configuración Inicial:</h4>
+      <h4 style="margin:0 0 8px 0; font-size:14px; text-align:left; color:#00e676;">Configuración Inicial:</h4>
       
-      <label style="font-size:12px; color:#ccc;">Tu Nombre / Emprendimiento:</label>
+      <label for="reg-nombre">Tu Nombre / Emprendimiento:</label>
       <input type="text" id="reg-nombre" placeholder="Ej: Artesanías Aike">
 
-      <label style="font-size:12px; color:#ccc; margin-top:5px; display:block;">Tu WhatsApp (para soporte y avisos):</label>
+      <label for="reg-whatsapp">Tu WhatsApp (para soporte y avisos):</label>
       <input type="text" id="reg-whatsapp" placeholder="Ej: 2804...">
 
-      <label style="font-size:12px; color:#ccc; margin-top:5px; display:block;">Tu Correo Electrónico:</label>
+      <label for="reg-email">Tu Correo Electrónico:</label>
       <input type="email" id="reg-email" placeholder="tucorreo@gmail.com">
 
-      <label style="font-size:12px; color:#ccc; margin-top:5px; display:block;">Seleccioná tu Rubro:</label>
+      <label for="reg-rubro">Seleccioná tu Rubro:</label>
       <select id="reg-rubro">
         <option value="">-- Elija su Rubro Principal --</option>
         <option value="1">1. Comida / Panadería</option>
@@ -132,13 +148,13 @@
     </div>
 
     <!-- TÉRMINOS Y DESCARGO DE RESPONSABILIDAD -->
-    <div class="card" style="font-size:11px; color:#bbb; max-height: 80px; overflow-y: scroll; border: 1px solid #444;">
+    <div class="card" style="font-size:14px; color:#bbb; max-height: 80px; overflow-y: scroll; border: 1px solid #444;">
       <b>Términos y Descargo de Responsabilidad:</b><br>
       Esta aplicación se provee de forma libre y solidaria entre feriantes. El creador no se responsabiliza por pérdidas de datos por borrado de caché del navegador. Los registros financieros y de stock son de uso exclusivo y privado del usuario; ningún dato económico sale de su dispositivo salvo que decida exportarlo.
     </div>
 
-    <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 12px;">
-      <input type="checkbox" id="reg-acepta" style="width: 20px; height: 20px; margin:0;">
+    <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size:14px;">
+      <input type="checkbox" id="reg-acepta" style="width:28px; height:28px; margin:0; flex-shrink:0;">
       <label for="reg-acepta">Acepto los términos y el descargo de responsabilidad</label>
     </div>
 
@@ -153,62 +169,42 @@
     </div>
     <p style="text-align: center; font-size: 16px;">Desarrollado por:<br>a.rubenramirez@gmail.com</p>
     <button class="btn btn-green" onclick="mostrarPantalla('pantalla-menu')" style="margin-top: 20px;">INGRESAR AL SISTEMA</button>
-    <button class="btn btn-teal" onclick="abrirModalPublicidad()" style="font-size:12px;">⚙️ Configurar Rubro / Publicidad</button>
+    <button class="btn btn-teal" onclick="abrirModalPublicidad()">⚙️ Configurar Rubro / Publicidad</button>
   </div>
 
-  <!-- PANTALLA 2: MENÚ PRINCIPAL (botones grandes, lo de todos los días) -->
+  <!-- PANTALLA 2: MENÚ PRINCIPAL (mosaicos cuadrados en dos columnas) -->
   <div id="pantalla-menu" class="hidden">
     <h3 id="lbl-menu-titulo">¿QUÉ QUERÉS HACER?</h3>
 
     <div id="menu-ayuda" class="card tip hidden">
-      <p><b>👋 Para empezar:</b> entrá a <b>MIS PRODUCTOS Y RECETAS</b> y cargá lo que vendés.</p>
+      <p><b>👋 Para empezar:</b> entrá a <b>MIS PRODUCTOS</b> y cargá lo que vendés.</p>
     </div>
 
-    <button class="btn btn-big btn-green" onclick="mostrarPantalla('pantalla-venta')">
-      <span class="ico">💰</span><span>VENDER<small>Anotar una venta</small></span>
-    </button>
-    <button id="btn-menu-producir" class="btn btn-big btn-orange" onclick="mostrarPantalla('pantalla-producir')">
-      <span class="ico">🍞</span><span>PRODUCIR<small>Anotar lo que fabricaste</small></span>
-    </button>
-    <button id="btn-menu-comprar" class="btn btn-big btn-purple" onclick="mostrarPantalla('pantalla-comprar')">
-      <span class="ico">🛒</span><span>COMPRAR INSUMOS<small>Anotar lo que compraste</small></span>
-    </button>
-    <button class="btn btn-big btn-blue" onclick="mostrarPantalla('pantalla-armar')">
-      <span class="ico">📦</span><span>MIS PRODUCTOS Y RECETAS<small>Cargar y modificar</small></span>
-    </button>
-    <button class="btn btn-big btn-yellow" onclick="mostrarPantalla('pantalla-consulta')">
-      <span class="ico">🔍</span><span>VER MI STOCK<small>Qué tengo para vender</small></span>
-    </button>
-    <button class="btn btn-big btn-teal" onclick="mostrarPantalla('pantalla-reportes-menu')">
-      <span class="ico">📊</span><span>CÓMO ME FUE<small>Ventas y ganancia</small></span>
-    </button>
-    <button class="btn btn-big btn-gray" onclick="mostrarPantalla('pantalla-mas')">
-      <span class="ico">⚙️</span><span>MÁS OPCIONES<small>Copia de seguridad y otras</small></span>
-    </button>
+    <div class="menu-grid">
+      <button class="tile btn-green" onclick="mostrarPantalla('pantalla-venta')"><span class="ico">💰</span><span>VENDER<small>Anotar una venta</small></span></button>
+      <button id="btn-menu-producir" class="tile btn-orange" onclick="mostrarPantalla('pantalla-producir')"><span class="ico">🍞</span><span>PRODUCIR<small>Lo que fabricaste</small></span></button>
+      <button id="btn-menu-comprar" class="tile btn-purple" onclick="mostrarPantalla('pantalla-comprar')"><span class="ico">🛒</span><span>COMPRAR INSUMOS<small>Lo que compraste</small></span></button>
+      <button class="tile btn-blue" onclick="mostrarPantalla('pantalla-armar')"><span class="ico">📦</span><span>MIS PRODUCTOS<small>Y recetas</small></span></button>
+      <button class="tile btn-yellow" onclick="mostrarPantalla('pantalla-consulta')"><span class="ico">🔍</span><span>VER MI STOCK<small>Qué tengo</small></span></button>
+      <button class="tile btn-teal" onclick="mostrarPantalla('pantalla-reportes-menu')"><span class="ico">📊</span><span>CÓMO ME FUE<small>Ventas y ganancia</small></span></button>
+      <button class="tile tile-wide btn-gray" onclick="mostrarPantalla('pantalla-mas')"><span class="ico">⚙️</span><span>MÁS OPCIONES<small>Respaldo y otras</small></span></button>
+    </div>
   </div>
 
   <!-- SUBMENÚ: MIS PRODUCTOS Y RECETAS (pasos 1-2-3) -->
   <div id="pantalla-armar" class="hidden">
     <h3>MIS PRODUCTOS Y RECETAS</h3>
-    <p style="font-size:14px; color:#ccc; text-align:center; margin:4px 0 10px 0;">Seguí el orden de los pasos.</p>
+    <p style="font-size:15px; color:#ccc; text-align:center; margin:0 0 6px 0;">Seguí el orden de los pasos.</p>
 
-    <div id="seccion-pasos-productor">
-      <button class="btn btn-big btn-purple" onclick="mostrarPantalla('pantalla-insumos')">
-        <span class="ico">1️⃣</span><span>CARGAR INSUMOS<small>Lo que usás para fabricar (harina, cuero, hilos)</small></span>
-      </button>
-      <button class="btn btn-big btn-purple" onclick="validarYIrARecetas()">
-        <span class="ico">2️⃣</span><span>RECETA DE CADA PRODUCTO<small>Cuánto usás de cada insumo</small></span>
-      </button>
-    </div>
-
-    <button id="btn-menu-producto" class="btn btn-big btn-orange" onclick="mostrarPantalla('pantalla-nuevo')">
-      <span class="ico" id="num-paso-producto">3️⃣</span><span>GUARDAR PRODUCTO Y FOTO<small id="lbl-desc-producto">Nombre, precio de venta y foto</small></span>
-    </button>
-
-    <div id="seccion-grilla-revendedor" class="hidden">
-      <button class="btn btn-big btn-purple" onclick="mostrarPantalla('pantalla-grilla')">
-        <span class="ico">⚡</span><span>CARGA RÁPIDA EN GRILLA<small>Varios productos de una vez</small></span>
-      </button>
+    <div class="menu-grid">
+      <div id="seccion-pasos-productor" class="contents">
+        <button class="tile btn-purple" onclick="mostrarPantalla('pantalla-insumos')"><span class="ico">1️⃣</span><span>CARGAR INSUMOS<small>Harina, cuero, hilos</small></span></button>
+        <button class="tile btn-purple" onclick="validarYIrARecetas()"><span class="ico">2️⃣</span><span>RECETAS<small>Qué usa cada producto</small></span></button>
+      </div>
+      <button id="btn-menu-producto" class="tile btn-orange" onclick="mostrarPantalla('pantalla-nuevo')"><span class="ico" id="num-paso-producto">3️⃣</span><span>GUARDAR PRODUCTO Y FOTO<small id="lbl-desc-producto">Nombre, precio y foto</small></span></button>
+      <div id="seccion-grilla-revendedor" class="contents hidden">
+        <button class="tile btn-purple" onclick="mostrarPantalla('pantalla-grilla')"><span class="ico">⚡</span><span>CARGA RÁPIDA<small>Varios productos juntos</small></span></button>
+      </div>
     </div>
 
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
@@ -217,30 +213,24 @@
   <!-- SUBMENÚ: CÓMO ME FUE -->
   <div id="pantalla-reportes-menu" class="hidden">
     <h3>CÓMO ME FUE</h3>
-    <button class="btn btn-big btn-blue" onclick="mostrarPantalla('pantalla-reporte')">
-      <span class="ico">📋</span><span>REPORTE DEL DÍA<small>Lo que vendí y lo que gané</small></span>
-    </button>
-    <button class="btn btn-big btn-teal" onclick="mostrarPantalla('pantalla-reporte-general')">
-      <span class="ico">📈</span><span>ESTADÍSTICAS Y FICHA<small>Gráficos, insumos y fichas</small></span>
-    </button>
+    <div class="menu-grid">
+      <button class="tile btn-blue" onclick="mostrarPantalla('pantalla-reporte')"><span class="ico">📋</span><span>REPORTE DEL DÍA<small>Lo que vendí y gané</small></span></button>
+      <button class="tile btn-teal" onclick="mostrarPantalla('pantalla-reporte-general')"><span class="ico">📈</span><span>ESTADÍSTICAS<small>Gráficos y fichas</small></span></button>
+    </div>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
   <!-- SUBMENÚ: MÁS OPCIONES -->
   <div id="pantalla-mas" class="hidden">
     <h3>MÁS OPCIONES</h3>
-    <div id="seccion-calculadora-extra">
-      <button class="btn btn-big btn-blue" onclick="mostrarPantalla('pantalla-calculadora-lote')">
-        <span class="ico">🧮</span><span>CALCULADORA DE LOTE<small>Cuánto necesito para fabricar</small></span>
-      </button>
+    <div class="menu-grid">
+      <div id="seccion-calculadora-extra" class="contents">
+        <button class="tile btn-blue" onclick="mostrarPantalla('pantalla-calculadora-lote')"><span class="ico">🧮</span><span>CALCULADORA DE LOTE<small>Cuánto necesito</small></span></button>
+      </div>
+      <button class="tile btn-teal" onclick="mostrarPantalla('pantalla-backup')"><span class="ico">💾</span><span>COPIA DE RESPALDO<small>Guardar mis datos</small></span></button>
+      <button class="tile btn-red" onclick="mostrarPantalla('pantalla-borrar')"><span class="ico">🗑️</span><span>BORRAR PRODUCTO<small>Sacar de mi lista</small></span></button>
+      <button class="tile btn-gray" id="btn-cambiar-rubro" onclick="cambiarRubro()"></button>
     </div>
-    <button class="btn btn-big btn-teal" onclick="mostrarPantalla('pantalla-backup')">
-      <span class="ico">💾</span><span>COPIA DE RESPALDO<small>Guardar o recuperar mis datos</small></span>
-    </button>
-    <button class="btn btn-big btn-red" onclick="mostrarPantalla('pantalla-borrar')">
-      <span class="ico">🗑️</span><span>BORRAR UN PRODUCTO<small>Eliminar de mi lista</small></span>
-    </button>
-    <button class="btn btn-big btn-gray" id="btn-cambiar-rubro" onclick="cambiarRubro()"></button>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
@@ -256,12 +246,12 @@
 
     <label for="compra-cant">¿Cuánto compraste?</label>
     <div style="display:flex; gap:8px;">
-      <input type="number" step="any" inputmode="decimal" id="compra-cant" placeholder="Cantidad" oninput="actualizarVistaCompra()">
-      <select id="compra-unidad" style="width:40%;" onchange="actualizarVistaCompra()"></select>
+      <input type="number" step="any" inputmode="decimal" id="compra-cant" oninput="actualizarVistaCompra()" placeholder="Ej: 5">
+      <select id="compra-unidad" aria-label="Unidad" style="width:40%;" onchange="actualizarVistaCompra()"></select>
     </div>
 
     <label for="compra-total">¿Cuánto pagaste en total? ($)</label>
-    <input type="number" step="any" inputmode="decimal" id="compra-total" placeholder="Total pagado" oninput="actualizarVistaCompra()">
+    <input type="number" step="any" inputmode="decimal" id="compra-total" oninput="actualizarVistaCompra()" placeholder="Ej: 5000">
 
     <div id="compra-vista" class="card" style="text-align:center; color:#00e676; margin-top:10px;"></div>
 
@@ -281,7 +271,8 @@
       <p><b>🍞 Anotá cuántos fabricaste de cada uno.</b> Se suman a tu stock y se descuentan los insumos de las recetas.</p>
     </div>
 
-    <input type="text" id="producir-filtro" placeholder="🔍 Buscar producto..." oninput="filtrarListaProduccion()">
+    <label for="producir-filtro">Buscar producto</label>
+    <input type="text" id="producir-filtro" oninput="filtrarListaProduccion()" placeholder="Ej: budín">
     <div id="producir-lista"></div>
 
     <button class="btn btn-big btn-green" onclick="confirmarProduccion()">
@@ -298,22 +289,25 @@
 
     <!-- TARJETA DE EDUCACIÓN FINANCIERA -->
     <div class="card" style="border-left: 4px solid #00d9ff; background: #081d24; margin-bottom: 10px;">
-      <p style="margin: 0; font-size: 12px; color: #b3f0ff;">
+      <p style="margin: 0; font-size:14px; color: #b3f0ff;">
         <b>💡 Tip de Venta:</b> Al confirmar la venta, la app descuenta las unidades de tu stock. Los insumos se descuentan cuando anotás lo que <b>producís</b>.
       </p>
     </div>
 
-    <input type="text" id="venta-buscar" placeholder="Escriba nombre o código..." oninput="buscarVentaPredictiva(this.value)">
+    <label for="venta-buscar">Buscar producto (nombre o código)</label>
+    <input type="text" id="venta-buscar" oninput="buscarVentaPredictiva(this.value)" placeholder="Ej: budín">
     <div id="venta-sugerencias"></div>
 
     <div class="card" style="margin-top: 10px;">
       <div id="venta-detalle">Detalle: -</div>
-      <div id="venta-costo" style="color:#aaa; font-size:13px;">Costo: $0.00</div>
+      <div id="venta-costo" style="color:#aaa; font-size:14px;">Costo: $0.00</div>
       <div id="venta-ref" style="color:#00e676; font-size:14px;">Precio Ref: $0.00 | Stock: 0</div>
     </div>
 
-    <input type="number" id="venta-precio" placeholder="Precio de Venta Final">
-    <input type="number" id="venta-cant" value="1" placeholder="Cantidad">
+    <label for="venta-precio">Precio de venta final ($)</label>
+    <input type="number" id="venta-precio" placeholder="Ej: 1500">
+    <label for="venta-cant">Cantidad</label>
+    <input type="number" id="venta-cant" value="1">
     <button class="btn btn-green" onclick="validarYConfirmarVenta()">CONFIRMAR VENTA</button>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
@@ -324,11 +318,12 @@
 
     <!-- TARJETA DE EDUCACIÓN FINANCIERA -->
     <div class="card" style="border-left: 4px solid #ffb74d; background: #261c0e; margin-bottom: 10px;">
-      <p style="margin: 0; font-size: 12px; color: #ffe0b2;">
+      <p style="margin: 0; font-size:14px; color: #ffe0b2;">
         <b>💰 Educación Financiera:</b> Recordá que <b>Vender no es Ganar</b>. Lo vendido cubre primero tus insumos y materiales (costo). La ganancia es lo que queda limpio para vos.
       </p>
     </div>
 
+    <label for="reporte-fecha">Fecha del reporte</label>
     <input type="date" id="reporte-fecha" onchange="cargarReporteVentas()">
     <div id="reporte-totales" style="color:#00e676; font-weight:bold; margin: 10px 0; text-align:center;">Vendido: $0.00 | Ganancia: $0.00</div>
     <div id="reporte-lista"></div>
@@ -341,7 +336,7 @@
     <h3>ESTADÍSTICAS Y FICHA TÉCNICA</h3>
 
     <div class="card">
-      <label style="font-size:13px; color:#ccc;">Período del Gráfico:</label>
+      <label for="reporte-periodo">Período del Gráfico:</label>
       <select id="reporte-periodo" onchange="actualizarReporteGeneral()">
         <option value="dia">Hoy (Por Horas)</option>
         <option value="semana">Últimos 7 Días</option>
@@ -360,13 +355,14 @@
 
     <div class="card">
       <h4 style="margin:0 0 10px 0; font-size:14px;">Ficha Técnica de Producto</h4>
-      <input type="text" id="reporte-buscar-prod" placeholder="Buscar por nombre o código..." oninput="buscarProductoFicha(this.value)">
+      <label for="reporte-buscar-prod">Buscar producto (nombre o código)</label>
+    <input type="text" id="reporte-buscar-prod" oninput="buscarProductoFicha(this.value)" placeholder="Ej: budín">
       <div id="reporte-sugerencias-prod"></div>
       
       <div id="reporte-ficha-detalle" class="hidden" style="margin-top:10px; text-align:center;">
         <img id="ficha-foto" src="" style="width:110px; height:110px; object-fit:cover; border-radius:8px; border:1px solid #444; display:none; margin:0 auto 8px auto;">
         <h5 id="ficha-nombre" style="margin:5px 0; color:#00d9ff;"></h5>
-        <div id="ficha-precios" style="font-size:13px; color:#00e676; margin-bottom:8px;"></div>
+        <div id="ficha-precios" style="font-size:14px; color:#00e676; margin-bottom:8px;"></div>
         <div id="ficha-ingredientes" style="text-align:left;"></div>
       </div>
     </div>
@@ -377,11 +373,12 @@
   <!-- PANTALLA 5: CATÁLOGO Y STOCK DE PRODUCTOS -->
   <div id="pantalla-consulta" class="hidden">
     <h3>CATÁLOGO Y STOCK DE PRODUCTOS</h3>
-    <input type="text" id="consulta-filtro" placeholder="Filtrar por código o detalle..." oninput="cargarConsultaStock()">
+    <label for="consulta-filtro">Buscar en mi stock</label>
+    <input type="text" id="consulta-filtro" oninput="cargarConsultaStock()" placeholder="Código o nombre">
     <div style="display:flex; gap:5px; margin-bottom: 10px;">
-      <button class="btn btn-gray" style="font-size:12px;" onclick="cargarConsultaStock('todos')">Todos</button>
-      <button class="btn btn-gray" style="font-size:12px;" onclick="cargarConsultaStock('comestible')">Comestibles</button>
-      <button class="btn btn-gray" style="font-size:12px;" onclick="cargarConsultaStock('no_comestible')">No Comestibles</button>
+      <button class="btn btn-gray" style="font-size:14px; padding:8px 4px;" onclick="cargarConsultaStock('todos')">Todos</button>
+      <button class="btn btn-gray" style="font-size:14px; padding:8px 4px;" onclick="cargarConsultaStock('comestible')">Comestibles</button>
+      <button class="btn btn-gray" style="font-size:14px; padding:8px 4px;" onclick="cargarConsultaStock('no_comestible')">No comest.</button>
     </div>
     
     <div id="consulta-tarjetas-container"></div>
@@ -392,33 +389,39 @@
   <!-- PANTALLA 6: NUEVO / EDITAR PRODUCTO -->
   <div id="pantalla-nuevo" class="hidden">
     <h3>NUEVO / EDITAR PRODUCTO</h3>
-    <div style="display:flex; gap:5px;">
-      <input type="text" id="prod-codigo" placeholder="Código">
-      <button class="btn btn-blue" style="width:35%; margin:5px 0; font-size:12px;" onclick="buscarProductoParaEditar()">🔍 Buscar</button>
+    <label for="prod-codigo">Código del producto</label>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input type="text" id="prod-codigo" placeholder="Ej: 101" style="flex:1; min-width:0;">
+      <button class="btn btn-blue" style="width:34%; margin:4px 0 8px 0;" onclick="buscarProductoParaEditar()">🔍 Buscar</button>
     </div>
 
-    <button class="btn btn-purple" style="font-size:12px; padding:8px; margin-bottom:8px;" onclick="importarDesdeEscandallo(true)">
+    <button class="btn btn-purple" style="margin-bottom:8px;" onclick="importarDesdeEscandallo(true)">
       ⚡ Traer Costo Calculado de la Receta
     </button>
 
-    <input type="text" id="prod-nombre" placeholder="Detalle / Descripción">
-    <input type="number" step="0.01" id="prod-costo" placeholder="Precio Costo ($)">
-    <input type="number" step="0.01" id="prod-ref" placeholder="Precio Referencia ($)">
-    <input type="number" id="prod-stock" placeholder="Stock Inicial">
+    <label for="prod-nombre">Detalle o descripción</label>
+    <input type="text" id="prod-nombre" placeholder="Ej: Budín de manzana">
+    <label for="prod-costo">Precio de costo ($)</label>
+    <input type="number" step="0.01" id="prod-costo" placeholder="Ej: 800">
+    <label for="prod-ref">Precio de venta de referencia ($)</label>
+    <input type="number" step="0.01" id="prod-ref" placeholder="Ej: 1500">
+    <label for="prod-stock">Stock inicial (cuántos tenés)</label>
+    <input type="number" id="prod-stock" placeholder="Ej: 10">
+    <label for="prod-tipo">Tipo de producto</label>
     <select id="prod-tipo">
       <option value="comestible">Comestible</option>
       <option value="no_comestible">No Comestible</option>
     </select>
     
     <div class="card" style="text-align:center; margin-top:8px;">
-      <label style="font-size:13px; color:#ccc; display:block; margin-bottom:5px;">Foto del Producto:</label>
+      <label>Foto del producto</label>
       
       <input type="file" id="prod-input-foto" accept="image/*" style="display:none;" onchange="procesarYComprimirFoto(event)">
       <input type="hidden" id="prod-foto-base64">
 
       <div style="display:flex; gap:5px; margin-bottom:8px;">
-        <button type="button" class="btn btn-blue" style="font-size:12px; padding:8px;" onclick="document.getElementById('prod-input-foto').removeAttribute('capture'); document.getElementById('prod-input-foto').click();">📁 Galería</button>
-        <button type="button" class="btn btn-teal" style="font-size:12px; padding:8px;" onclick="document.getElementById('prod-input-foto').setAttribute('capture', 'environment'); document.getElementById('prod-input-foto').click();">📷 Cámara</button>
+        <button type="button" class="btn btn-blue" onclick="document.getElementById('prod-input-foto').removeAttribute('capture'); document.getElementById('prod-input-foto').click();">📁 Galería</button>
+        <button type="button" class="btn btn-teal" onclick="document.getElementById('prod-input-foto').setAttribute('capture', 'environment'); document.getElementById('prod-input-foto').click();">📷 Cámara</button>
       </div>
 
       <div id="prod-preview-container" style="display:none;">
@@ -426,7 +429,7 @@
       </div>
     </div>
 
-    <div id="prod-estado" style="color:#ffb74d; text-align:center; margin:5px; font-size:13px;"></div>
+    <div id="prod-estado" style="color:#ffb74d; text-align:center; margin:5px; font-size:14px;"></div>
     <button class="btn btn-green" onclick="guardarProducto()">GUARDAR PRODUCTO</button>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
@@ -437,16 +440,18 @@
 
     <!-- TARJETA DE EDUCACIÓN FINANCIERA -->
     <div class="card" style="border-left: 4px solid #00d9ff; background: #081d24; margin-bottom: 10px;">
-      <p style="margin: 0; font-size: 12px; color: #b3f0ff;">
+      <p style="margin: 0; font-size:14px; color: #b3f0ff;">
         <b>💡 Gestión Inteligente:</b> Seleccioná la unidad correcta para que la app pueda descontar automáticamente en las recetas.
       </p>
     </div>
 
-    <input type="text" id="insumo-nombre" placeholder="Nombre (Ej: Harina, Cuero, Hilos)">
+    <label for="insumo-nombre">Nombre del insumo</label>
+    <input type="text" id="insumo-nombre" placeholder="Ej: Harina, cuero, hilos">
     
     <!-- Selector de unidades estandarizadas para evitar errores -->
+    <label for="insumo-unidad">Unidad de medida</label>
     <select id="insumo-unidad">
-      <option value="">-- Seleccionar Unidad de Medida --</option>
+      <option value="">-- Elegí la unidad --</option>
       <option value="kg">Kilogramos (kg)</option>
       <option value="g">Gramos (g)</option>
       <option value="litros">Litros (l)</option>
@@ -454,8 +459,10 @@
       <option value="un">Unidades (un)</option>
     </select>
 
-    <input type="number" step="0.01" id="insumo-costo" placeholder="Costo por unidad ($)">
-    <input type="number" step="0.01" id="insumo-stock" placeholder="Stock disponible">
+    <label for="insumo-costo">Costo por unidad ($)</label>
+    <input type="number" step="0.01" id="insumo-costo" placeholder="Ej: 1200">
+    <label for="insumo-stock">Stock disponible</label>
+    <input type="number" step="0.01" id="insumo-stock" placeholder="Ej: 5">
     
     <button class="btn btn-green" id="btn-guardar-insumo" onclick="guardarInsumo()">GUARDAR INSUMO</button>
     <button class="btn btn-red hidden" id="btn-eliminar-insumo" onclick="eliminarInsumoActual()">ELIMINAR ESTE INSUMO</button>
@@ -471,11 +478,12 @@
   <div id="pantalla-recetas" class="hidden">
     <h3>FICHA TÉCNICA Y RECETA</h3>
     
-    <label style="font-size: 13px; color: #ccc;">Buscar producto por nombre o código:</label>
-    <input type="text" id="receta-buscar-prod" placeholder="Escriba detalle o código..." oninput="buscarProductoParaReceta(this.value)">
+    <label for="receta-buscar-prod">Buscar producto por nombre o código:</label>
+    <input type="text" id="receta-buscar-prod" placeholder="Ej: budín" oninput="buscarProductoParaReceta(this.value)">
     <div id="receta-sugerencias-prod"></div>
 
-    <input type="text" id="receta-cod-prod" placeholder="Código de Producto Seleccionado" oninput="cargarDetalleRecetaRegistrada()" style="margin-top: 8px;">
+    <label for="receta-cod-prod">Código del producto elegido</label>
+    <input type="text" id="receta-cod-prod" oninput="cargarDetalleRecetaRegistrada()" style="margin-top: 8px;" placeholder="Se completa al elegir">
     
     <!-- CONTENEDOR EN DOS COLUMNAS: FOTO (IZQ) E INGREDIENTES (DER) -->
     <div id="receta-vista-previa" class="card" style="display:flex; gap:12px; align-items:flex-start; background:#181818; border-left:4px solid #800080; margin-top:10px; flex-wrap:wrap;">
@@ -483,15 +491,15 @@
       <!-- Columna Izquierda: Foto y Datos Generales -->
       <div style="flex: 1; min-width: 110px; text-align:center;">
         <img id="receta-foto-preview" src="" style="width:100%; max-width:110px; height:110px; object-fit:cover; border-radius:8px; border:1px solid #444; display:none; margin:0 auto 6px auto;">
-        <div id="receta-foto-placeholder" style="width:100px; height:100px; background:#222; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; color:#777; margin:0 auto 6px auto; border:1px dashed #444;">Sin Foto</div>
-        <div id="receta-prod-titulo" style="font-size:12px; font-weight:bold; color:#00d9ff;">Seleccione producto</div>
+        <div id="receta-foto-placeholder" style="width:100px; height:100px; background:#222; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; color:#777; margin:0 auto 6px auto; border:1px dashed #444;">Sin Foto</div>
+        <div id="receta-prod-titulo" style="font-size:14px; font-weight:bold; color:#00d9ff;">Seleccione producto</div>
       </div>
 
       <!-- Columna Derecha: Tabla de Ingredientes Cargados -->
       <div style="flex: 2; min-width: 180px;">
-        <h4 style="margin:0 0 6px 0; font-size:13px; color:#00e676; text-align:left;">Ingredientes / Materiales:</h4>
-        <div id="receta-ingredientes-lista" style="font-size:12px;">
-          <span style="color:#aaa; font-size:11px;">Busque un producto para ver sus componentes.</span>
+        <h4 style="margin:0 0 6px 0; font-size:14px; color:#00e676; text-align:left;">Ingredientes / Materiales:</h4>
+        <div id="receta-ingredientes-lista" style="font-size:14px;">
+          <span style="color:#aaa; font-size:14px;">Busque un producto para ver sus componentes.</span>
         </div>
       </div>
 
@@ -499,10 +507,19 @@
 
     <!-- FORMULARIO PARA ASOCIAR INSUMOS -->
     <div class="card" style="margin-top:10px;">
-      <h4 style="margin:0 0 8px 0; font-size:13px; text-align:left; color:#ccc;">+ Agregar Insumo a la Receta:</h4>
+      <h4 style="margin:0 0 8px 0; font-size:14px; text-align:left; color:#ccc;">+ Agregar Insumo a la Receta:</h4>
+      <label for="receta-select-insumo">Insumo a agregar</label>
       <select id="receta-select-insumo"></select>
-      <input type="number" step="0.01" id="receta-cant-usada" placeholder="Cantidad usada por 1 unidad de producto">
-      <select id="receta-unidad-uso" title="Unidad en que usás este insumo"></select>
+      <div style="display:flex; gap:10px; align-items:flex-end;">
+        <div style="flex:1; min-width:0;">
+          <label for="receta-cant-usada">Cantidad usada por 1 producto</label>
+          <input type="number" step="any" inputmode="decimal" id="receta-cant-usada" placeholder="Ej: 250">
+        </div>
+        <div style="width:34%; flex-shrink:0;">
+          <label for="receta-unidad-uso">Unidad</label>
+          <select id="receta-unidad-uso"></select>
+        </div>
+      </div>
       <button class="btn btn-purple" onclick="vincularIngrediente()">Vincular Insumo a la Receta</button>
     </div>
     
@@ -514,15 +531,16 @@
   <div id="pantalla-calculadora-lote" class="hidden">
     <h3>CALCULADORA DE LOTE Y COMPRAS</h3>
     
-    <label style="font-size: 13px; color: #ccc;">Buscar producto por nombre o código:</label>
-    <input type="text" id="calc-buscar-prod" placeholder="Escriba detalle o código..." oninput="buscarProductoParaCalculadoraLote(this.value)">
+    <label for="calc-buscar-prod">Buscar producto por nombre o código:</label>
+    <input type="text" id="calc-buscar-prod" placeholder="Ej: budín" oninput="buscarProductoParaCalculadoraLote(this.value)">
     <div id="calc-sugerencias-prod"></div>
 
-    <input type="text" id="calc-cod-prod" placeholder="Código del Producto" style="margin-top: 8px;">
+    <label for="calc-cod-prod">Código del producto</label>
+    <input type="text" id="calc-cod-prod" style="margin-top: 8px;" placeholder="Se completa al elegir">
 
     <div class="card" style="margin-top:10px;">
-      <h4 style="margin:0 0 5px 0; font-size:14px; text-align:left;">Cantidad que querés fabricar:</h4>
-      <input type="number" id="receta-lote" value="1" placeholder="Cantidad a producir (ej: 10, 50)">
+      <label for="receta-lote">¿Cuántos querés fabricar?</label>
+    <input type="number" id="receta-lote" value="1" placeholder="Ej: 10">
       <button class="btn btn-blue" onclick="calcularEscandallo()">CALCULAR PRESUPUESTO Y MATERIALES</button>
       <button class="btn btn-purple" style="margin-top:8px;" onclick="calcularMaximoProducible()">🔍 ¿Cuántos puedo fabricar con mi stock actual?</button>
     </div>
@@ -545,7 +563,7 @@
   <!-- PANTALLA 10: COPIA DE RESPALDO -->
   <div id="pantalla-backup" class="hidden">
     <h3>RESPALDO DE DATOS</h3>
-    <p style="font-size:12px; color:#aaa; text-align:center;">Guardá una copia de seguridad o cargá tus datos de otro dispositivo.</p>
+    <p style="font-size:14px; color:#aaa; text-align:center;">Guardá una copia de seguridad o cargá tus datos de otro dispositivo.</p>
     
     <button class="btn btn-green" onclick="exportarArchivoRespaldo()">📥 Descargar Respaldo (Archivo JSON)</button>
 
@@ -560,7 +578,8 @@
   <!-- PANTALLA 11: BORRAR PRODUCTO -->
   <div id="pantalla-borrar" class="hidden">
     <h3 style="color:#ff5252;">BORRAR PRODUCTO</h3>
-    <input type="text" id="borrar-codigo" placeholder="Código del producto">
+    <label for="borrar-codigo">Código del producto a borrar</label>
+    <input type="text" id="borrar-codigo" placeholder="Ej: 101">
     <button class="btn btn-red" onclick="ejecutarBorrado()">ELIMINAR DEFINITIVAMENTE</button>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
@@ -569,9 +588,10 @@
   <div id="modal-publicidad" class="modal-overlay hidden">
     <div class="modal-content">
       <h3 style="margin-top:0;">SELECCIONE SU RUBRO</h3>
-      <p style="font-size:13px; color:#ccc;">Al guardar, se enviará el código por WhatsApp para asignarle el banner de auspiciantes adecuado.</p>
+      <p style="font-size:14px; color:#ccc;">Al guardar, se enviará el código por WhatsApp para asignarle el banner de auspiciantes adecuado.</p>
       
-      <select id="select-rubro-pub">
+      <label for="select-rubro-pub">Tu rubro</label>
+    <select id="select-rubro-pub">
         <option value="">-- Elija un Rubro --</option>
         <option value="1">1. Comida / Panadería</option>
         <option value="2">2. Ropa / Indumentaria</option>

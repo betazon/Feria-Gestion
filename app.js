@@ -188,11 +188,19 @@ async function cargarMenu() {
   const num = document.getElementById('num-paso-producto');
   if (num) num.innerText = esProductor ? '3️⃣' : '1️⃣';
 
+  // Mosaico ancho cuando queda una celda sola, para que la cuadrícula no tenga huecos
+  const ancho = (id, si) => {
+    const el = document.getElementById(id);
+    if (el) el.classList[si ? 'add' : 'remove']('tile-wide');
+  };
+  ancho('btn-menu-producto', esProductor);
+  ancho('btn-cambiar-rubro', !esProductor);
+
   const btnModo = document.getElementById('btn-cambiar-rubro');
   if (btnModo) {
     btnModo.innerHTML = esProductor
-      ? '<span class="ico">🔄</span><span>SOY PRODUCTOR<small>Fabrico lo que vendo · tocá para cambiar a revendedor</small></span>'
-      : '<span class="ico">🔄</span><span>SOY REVENDEDOR<small>Vendo lo que compro · tocá para cambiar a productor</small></span>';
+      ? '<span class="ico">🔄</span><span>SOY PRODUCTOR<small>Tocá para cambiar</small></span>'
+      : '<span class="ico">🔄</span><span>SOY REVENDEDOR<small>Tocá para cambiar</small></span>';
   }
 
   // Ayuda de primer uso: solo aparece mientras no haya ningún producto cargado
@@ -417,7 +425,7 @@ async function cargarStockInsumosReporte() {
   if (!cont) return;
 
   if (insumos.length === 0) {
-    cont.innerHTML = '<div style="color:#aaa; font-size:12px;">No hay insumos registrados.</div>';
+    cont.innerHTML = '<div style="color:#aaa; font-size:14px;">No hay insumos registrados.</div>';
     return;
   }
 
@@ -475,7 +483,7 @@ async function mostrarFichaProducto(prod) {
   const contIng = document.getElementById('ficha-ingredientes');
 
   if (componentes.length === 0) {
-    contIng.innerHTML = '<div style="color:#aaa; font-size:12px;">Sin ingredientes o materiales vinculados.</div>';
+    contIng.innerHTML = '<div style="color:#aaa; font-size:14px;">Sin ingredientes o materiales vinculados.</div>';
   } else {
     let html = '<h6 style="margin:5px 0; text-align:left;">Materiales / Ingredientes:</h6><ul>';
     for (let c of componentes) {
@@ -529,7 +537,7 @@ async function cargarConsultaStock(tipo) {
 
     const fotoHtml = p.foto_path 
       ? `<img src="${p.foto_path}" style="width:70px; height:70px; object-fit:cover; border-radius:6px; border:1px solid #444; flex-shrink:0;">`
-      : `<div style="width:70px; height:70px; background:#222; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#777; flex-shrink:0;">Sin Foto</div>`;
+      : `<div style="width:70px; height:70px; background:#222; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:14px; color:#777; flex-shrink:0;">Sin Foto</div>`;
 
     html += `
       <div class="card" style="margin-bottom: 10px; border-left: 4px solid #00b359;">
@@ -537,20 +545,20 @@ async function cargarConsultaStock(tipo) {
           ${fotoHtml}
           <div style="flex:1; overflow:hidden;">
             <h4 style="margin:0 0 3px 0; font-size:14px; color:#00d9ff; text-align:left;">${p.detalle}</h4>
-            <div style="font-size:11px; color:#aaa; margin-bottom:4px;">Cód: <b>${p.codigo}</b> | Stock: <b style="color:#ffb74d;">${p.stock}</b></div>
+            <div style="font-size:14px; color:#aaa; margin-bottom:4px;">Cód: <b>${p.codigo}</b> | Stock: <b style="color:#ffb74d;">${p.stock}</b></div>
             
-            <div style="display:flex; gap:8px; font-size:12px; margin-bottom:4px; flex-wrap:wrap;">
+            <div style="display:flex; gap:8px; font-size:14px; margin-bottom:4px; flex-wrap:wrap;">
               <span style="background:#222; padding:2px 6px; border-radius:4px; border:1px solid #444;">Costo: <b>$${p.precio_costo.toFixed(2)}</b></span>
               <span style="background:#112a1a; padding:2px 6px; border-radius:4px; border:1px solid #00b359; color:#00e676;">Precio Ref: <b>$${p.precio_ref.toFixed(2)}</b></span>
             </div>
           </div>
         </div>
 
-        <div style="font-size:11px; color:#ccc; background:#1a1a1a; padding:6px; border-radius:4px; margin-top:8px; text-align:left;">
+        <div style="font-size:14px; color:#ccc; background:#1a1a1a; padding:6px; border-radius:4px; margin-top:8px; text-align:left;">
           📜 <b>Ingredientes / Materiales:</b> ${listaIngredientesTxt}
         </div>
 
-        <button class="btn btn-green" style="margin-top:8px; padding:6px; font-size:12px;" onclick="prepararVentaDirectaDesdeCatalogo('${p.codigo}')">
+        <button class="btn btn-green" style="margin-top:8px; padding:6px; font-size:14px;" onclick="prepararVentaDirectaDesdeCatalogo('${p.codigo}')">
           💰 Registrar Venta de este Producto
         </button>
       </div>
@@ -706,18 +714,18 @@ async function toggleListadoInsumos() {
 
   const insumos = await db.insumos.toArray();
   if (insumos.length === 0) {
-    contenedor.innerHTML = '<div class="card" style="color:#aaa; font-size:13px; text-align:center;">No hay insumos cargados todavía.</div>';
+    contenedor.innerHTML = '<div class="card" style="color:#aaa; font-size:14px; text-align:center;">No hay insumos cargados todavía.</div>';
     contenedor.classList.remove('hidden');
     return;
   }
 
-  let html = '<div class="card"><h4 style="margin:0 0 5px 0; font-size:13px; color:#00d9ff;">Insumos en Stock (Toca ✏️ para editar):</h4><table><tr><th>Insumo</th><th>Stock</th><th>Costo</th><th>Acción</th></tr>';
+  let html = '<div class="card"><h4 style="margin:0 0 5px 0; font-size:14px; color:#00d9ff;">Insumos en Stock (Toca ✏️ para editar):</h4><table><tr><th>Insumo</th><th>Stock</th><th>Costo</th><th>Acción</th></tr>';
   insumos.forEach((ins, i) => {
     html += `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
       <td>${ins.nombre}</td>
       <td style="color:#00e676; font-weight:bold;">${ins.stock} ${ins.unidad}</td>
       <td>$${ins.costo_unitario.toFixed(2)} / ${ins.unidad}</td>
-      <td><button class="btn btn-blue" style="padding:2px 6px; font-size:11px; margin:0;" onclick="cargarInsumoParaEditar(${ins.id})">✏️</button></td>
+      <td><button class="btn btn-blue" style="padding:2px 6px; font-size:14px; margin:0;" onclick="cargarInsumoParaEditar(${ins.id})">✏️</button></td>
     </tr>`;
   });
   html += '</table></div>';
@@ -897,7 +905,7 @@ async function calcularMaximoProducible() {
   if (maximoPosible === Infinity || maximoPosible <= 0) {
     resultadoEl.innerHTML = `<span style="color:#ff5252;">⚠️ No se puede fabricar ninguna unidad. Falta stock de: <b>${insumoLimitante || 'insumos'}</b>.</span>`;
   } else {
-    resultadoEl.innerHTML = `<span style="color:#00e676; font-size:16px;">🎯 Con tu stock actual podés fabricar hasta <b>${maximoPosible} unidades</b>.<br><span style="font-size:12px; color:#ffb74d;">(El insumo que marca el límite es: ${insumoLimitante})</span></span>`;
+    resultadoEl.innerHTML = `<span style="color:#00e676; font-size:16px;">🎯 Con tu stock actual podés fabricar hasta <b>${maximoPosible} unidades</b>.<br><span style="font-size:14px; color:#ffb74d;">(El insumo que marca el límite es: ${insumoLimitante})</span></span>`;
   }
 
   const tablaEl = document.getElementById('receta-resultado-tabla');
@@ -916,18 +924,22 @@ function compartirComprasWhatsApp() {
 // GESTIÓN DE GRILLA Y BORRADO
 function inicializarGrilla() {
   document.getElementById('contenedor-grilla').innerHTML = '';
-  for(let i=0; i<4; i++) agregarFilaGrilla();
+  for(let i=0; i<2; i++) agregarFilaGrilla();
 }
 
 function agregarFilaGrilla() {
   const div = document.createElement('div');
-  div.style.display = 'flex'; div.style.gap = '4px'; div.style.marginBottom = '4px';
+  div.className = 'card fila-grilla';
   div.innerHTML = `
-    <input type="text" placeholder="Cód" style="width:20%;">
-    <input type="text" placeholder="Detalle" style="width:35%;">
-    <input type="number" placeholder="Costo" style="width:15%;">
-    <input type="number" placeholder="P.Ref" style="width:15%;">
-    <button class="btn btn-green" style="width:15%; padding:5px; margin:5px 0;" onclick="altaFilaGrilla(this)">OK</button>
+    <label>Código</label>
+    <input type="text" placeholder="Ej: 101">
+    <label>Detalle</label>
+    <input type="text" placeholder="Ej: Budín de manzana">
+    <div class="dos-col">
+      <div><label>Costo ($)</label><input type="number" inputmode="decimal" placeholder="Ej: 800"></div>
+      <div><label>Precio de venta ($)</label><input type="number" inputmode="decimal" placeholder="Ej: 1500"></div>
+    </div>
+    <button class="btn btn-green" onclick="altaFilaGrilla(this)">GUARDAR ESTE PRODUCTO</button>
   `;
   document.getElementById('contenedor-grilla').appendChild(div);
 }
@@ -946,7 +958,7 @@ async function altaFilaGrilla(btn) {
   });
 
   btn.disabled = true;
-  btn.innerText = "✓";
+  btn.innerText = "✓ GUARDADO";
 }
 
 async function ejecutarBorrado() {
@@ -1194,7 +1206,7 @@ async function cargarDetalleRecetaRegistrada() {
   if (!cont) return;
 
   if (!codProd) {
-    cont.innerHTML = '<span style="color:#aaa; font-size:11px;">Busque un producto para ver sus componentes.</span>';
+    cont.innerHTML = '<span style="color:#aaa; font-size:14px;">Busque un producto para ver sus componentes.</span>';
     if (imgEl) imgEl.style.display = 'none';
     if (phEl) phEl.style.display = 'flex';
     if (tituloEl) tituloEl.innerText = 'Seleccione producto';
@@ -1221,7 +1233,7 @@ async function cargarDetalleRecetaRegistrada() {
   // Cargar componentes de la receta
   const componentes = await db.recetas.where('codigo_prod').equals(codProd).toArray();
   if (componentes.length === 0) {
-    cont.innerHTML = '<div style="color:#aaa; font-size:11px;">Sin insumos cargados para este producto.</div>';
+    cont.innerHTML = '<div style="color:#aaa; font-size:14px;">Sin insumos cargados para este producto.</div>';
     return;
   }
 
@@ -1231,9 +1243,9 @@ async function cargarDetalleRecetaRegistrada() {
     const nombreInsumo = ins ? ins.nombre : 'Insumo #' + c.id_insumo;
     const unidad = ins ? unidadUsoDe(c, ins) : '';
     html += `<tr>
-      <td style="font-size:11px;">${nombreInsumo}</td>
-      <td style="font-size:11px; font-weight:bold; color:#00e676;">${c.cantidad_usada} ${unidad}</td>
-      <td style="text-align:center;"><button class="btn btn-red" style="padding:1px 5px; font-size:10px; margin:0;" onclick="eliminarIngredienteReceta('${codProd}', ${c.id_insumo})">X</button></td>
+      <td style="font-size:14px;">${nombreInsumo}</td>
+      <td style="font-size:14px; font-weight:bold; color:#00e676;">${c.cantidad_usada} ${unidad}</td>
+      <td style="text-align:center;"><button class="btn btn-red" style="padding:1px 5px; font-size:14px; margin:0;" onclick="eliminarIngredienteReceta('${codProd}', ${c.id_insumo})">X</button></td>
     </tr>`;
   }
   cont.innerHTML = html + '</table>';
@@ -1502,7 +1514,7 @@ function crearFilaProduccion(p, tieneReceta) {
   titulo.textContent = p.detalle;
 
   const sub = document.createElement('div');
-  sub.style.cssText = 'font-size:13px; color:#aaa; margin-bottom:8px;';
+  sub.style.cssText = 'font-size:14px; color:#aaa; margin-bottom:8px;';
   sub.textContent = `Tenés ${p.stock} en stock` + (tieneReceta ? '' : ' · sin receta: solo suma stock');
 
   const control = document.createElement('div');
@@ -1647,7 +1659,7 @@ async function cargarHistorialProduccion() {
   let html = '<div class="card" style="margin-top:12px;"><h4 style="margin:0 0 6px 0;">Mis últimas producciones</h4>';
   prods.forEach(p => {
     const detalle = (p.items || []).map(i => `${esc(i.cantidad)} ${esc(i.detalle)}`).join(', ');
-    html += `<div style="font-size:13px; padding:5px 0; border-top:1px solid #333;"><b style="color:#00e676;">${formatearFechaHora(p.fecha)}</b> — ${detalle}</div>`;
+    html += `<div style="font-size:14px; padding:5px 0; border-top:1px solid #333;"><b style="color:#00e676;">${formatearFechaHora(p.fecha)}</b> — ${detalle}</div>`;
   });
   cont.innerHTML = html + '</div>';
 }
