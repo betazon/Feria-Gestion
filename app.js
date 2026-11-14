@@ -19,6 +19,18 @@ db.version(2).stores({
   producciones: '++id, fecha'
 });
 
+// Versión 3: promos (una por producto: llevando N unidades se paga un precio fijo)
+db.version(3).stores({
+  productos: 'codigo, detalle, precio_costo, precio_ref, stock, tipo, foto_path',
+  ventas: '++id, fecha, codigo, detalle, costo_unit, precio_venta, cantidad, ganancia',
+  insumos: '++id, nombre, unidad, costo_unitario, stock',
+  recetas: '[codigo_prod+id_insumo], codigo_prod, id_insumo, cantidad_usada',
+  configuracion: 'clave, valor',
+  compras: '++id, fecha, id_insumo',
+  producciones: '++id, fecha',
+  promos: 'codigo, activa'
+});
+
 let productoSeleccionadoVenta = null;
 let filtroConsultaActual = 'todos';
 let ultimosFaltantesCompras = [];
@@ -90,7 +102,7 @@ const DICCIONARIO_RUBROS = {
 function mostrarPantalla(id) {
   const ids = [
     'pantalla-bienvenida', 'pantalla-portada', 'pantalla-menu', 'pantalla-armar', 'pantalla-reportes-menu', 'pantalla-mas',
-    'pantalla-venta', 'pantalla-producir', 'pantalla-comprar', 'pantalla-reporte',
+    'pantalla-venta', 'pantalla-producir', 'pantalla-comprar', 'pantalla-promos', 'pantalla-reporte',
     'pantalla-reporte-general', 'pantalla-consulta', 'pantalla-nuevo', 'pantalla-insumos',
     'pantalla-recetas', 'pantalla-calculadora-lote', 'pantalla-grilla', 'pantalla-backup', 'pantalla-borrar'
   ];
@@ -114,6 +126,7 @@ function mostrarPantalla(id) {
   if (id === 'pantalla-grilla') inicializarGrilla();
   if (id === 'pantalla-comprar') cargarPantallaCompra();
   if (id === 'pantalla-producir') cargarPantallaProduccion();
+  if (id === 'pantalla-promos') cargarPantallaPromos();
   window.scrollTo(0, 0);
 }
 
@@ -254,7 +267,7 @@ async function buscarVentaPredictiva(texto) {
   prods.forEach(p => {
     const b = document.createElement('button');
     b.className = 'btn btn-blue';
-    b.style.fontSize = '12px';
+    b.style.fontSize = '15px';
     b.innerText = `${p.detalle} ($${p.precio_ref.toFixed(2)}) - Stock: ${p.stock}`;
     b.onclick = () => seleccionarProductoVenta(p);
     cont.appendChild(b);
@@ -269,9 +282,10 @@ function seleccionarProductoVenta(p) {
   document.getElementById('venta-costo').innerText = `Costo Unit: $${p.precio_costo.toFixed(2)}`;
   document.getElementById('venta-ref').innerText = `Precio Ref: $${p.precio_ref.toFixed(2)} | Stock: ${p.stock}`;
   document.getElementById('venta-precio').value = p.precio_ref;
+  actualizarVistaVenta();
 }
 
-// CONFIRMAR VENTA Y DESCONTAR INSUMOS AUTOMÁTICAMENTE
+// CONFIRMAR VENTA (aplica la promo si corresponde)
 async function validarYConfirmarVenta() {
   if (!productoSeleccionadoVenta) return alert("Seleccione un producto primero.");
 
@@ -292,17 +306,22 @@ async function validarYConfirmarVenta() {
   }
 
   // Todo o nada: si algo falla, no se modifica ni el stock ni las ventas
+  let calc;
   try {
-    await db.transaction('rw', db.productos, db.ventas, async () => {
+    await db.transaction('rw', db.productos, db.ventas, db.promos, async () => {
       const prod = await db.productos.get(codigo);
+      const promo = await db.promos.get(codigo);
+      calc = calcularVenta(cant, pVenta, prod, promo);
       await db.ventas.add({
         fecha: fechaLocalISO(),
         codigo: prod.codigo,
         detalle: prod.detalle,
         costo_unit: prod.precio_costo,
-        precio_venta: pVenta,
+        precio_venta: calc.total / cant,          // precio promedio por unidad (con promo incluida)
         cantidad: cant,
-        ganancia: (pVenta - prod.precio_costo) * cant
+        ganancia: redondear2(calc.total - prod.precio_costo * cant),
+        total: calc.total,
+        promo: calc.aplica ? calc.texto : ''
       });
       await db.productos.update(codigo, { stock: prod.stock - cant });
     });
@@ -310,13 +329,14 @@ async function validarYConfirmarVenta() {
     return alert("No se pudo registrar la venta. No se modificó nada.\n" + err.message);
   }
 
-  alert("✅ Venta registrada.");
+  alert(`✅ Venta registrada${calc.aplica ? ' con promo (' + calc.texto + ')' : ''}.\nTotal a cobrar: $${calc.total.toFixed(2)}`);
 
   document.getElementById('venta-buscar').value = '';
   document.getElementById('venta-precio').value = '';
   document.getElementById('venta-cant').value = '1';
   document.getElementById('venta-sugerencias').innerHTML = '';
   productoSeleccionadoVenta = null;
+  actualizarVistaVenta();
 }
 
 async function cargarReporteVentas() {
@@ -333,7 +353,7 @@ async function cargarReporteVentas() {
     totalVendido += subtotal;
     totalGanancia += v.ganancia;
     html += `<tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
-      <td>${normalizarFecha(v.fecha).substring(11, 16)}</td><td>${v.detalle}</td><td>${v.cantidad}</td><td>$${subtotal.toFixed(2)}</td><td>$${v.ganancia.toFixed(2)}</td>
+      <td>${normalizarFecha(v.fecha).substring(11, 16)}</td><td>${v.detalle}${v.promo ? ' 🏷️' : ''}</td><td>${v.cantidad}</td><td>$${subtotal.toFixed(2)}</td><td>$${v.ganancia.toFixed(2)}</td>
     </tr>`;
   });
 
@@ -456,7 +476,7 @@ async function buscarProductoFicha(texto) {
   prods.forEach(p => {
     const b = document.createElement('button');
     b.className = 'btn btn-blue';
-    b.style.fontSize = '12px';
+    b.style.fontSize = '15px';
     b.style.margin = '2px 0';
     b.innerText = `${p.detalle} (${p.codigo})`;
     b.onclick = () => mostrarFichaProducto(p);
@@ -768,7 +788,7 @@ async function buscarProductoParaReceta(texto) {
   prods.forEach(p => {
     const b = document.createElement('button');
     b.className = 'btn btn-blue';
-    b.style.fontSize = '12px';
+    b.style.fontSize = '15px';
     b.style.margin = '2px 0';
     b.innerText = `${p.detalle} (Cód: ${p.codigo})`;
     b.onclick = () => seleccionarProductoParaReceta(p);
@@ -791,7 +811,7 @@ async function buscarProductoParaCalculadoraLote(texto) {
   prods.forEach(p => {
     const b = document.createElement('button');
     b.className = 'btn btn-blue';
-    b.style.fontSize = '12px';
+    b.style.fontSize = '15px';
     b.style.margin = '2px 0';
     b.innerText = `${p.detalle} (Cód: ${p.codigo})`;
     b.onclick = () => {
@@ -978,7 +998,8 @@ async function armarRespaldo(incluirConfiguracion) {
     insumos: await db.insumos.toArray(),
     recetas: await db.recetas.toArray(),
     compras: await db.compras.toArray(),
-    producciones: await db.producciones.toArray()
+    producciones: await db.producciones.toArray(),
+    promos: await db.promos.toArray()
   };
   if (incluirConfiguracion) datos.configuracion = await db.configuracion.toArray();
   return datos;
@@ -1037,8 +1058,8 @@ async function importarArchivoRespaldo(event) {
 // REEMPLAZAR: las tablas que vienen en el archivo se vacían y se cargan tal cual (conserva los ids)
 async function restaurarRespaldoReemplazando(datos) {
   const lista = k => Array.isArray(datos[k]) ? datos[k] : [];
-  await db.transaction('rw', db.productos, db.ventas, db.insumos, db.recetas, db.compras, db.producciones, db.configuracion, async () => {
-    for (const k of ['productos', 'ventas', 'insumos', 'recetas', 'compras', 'producciones']) {
+  await db.transaction('rw', db.productos, db.ventas, db.insumos, db.recetas, db.compras, db.producciones, db.promos, db.configuracion, async () => {
+    for (const k of ['productos', 'ventas', 'insumos', 'recetas', 'compras', 'producciones', 'promos']) {
       if (Array.isArray(datos[k])) {
         await db[k].clear();
         await db[k].bulkAdd(datos[k]);
@@ -1055,8 +1076,9 @@ async function restaurarRespaldoCombinando(datos) {
   const lista = k => Array.isArray(datos[k]) ? datos[k] : [];
   let insumosNuevos = 0, ventasNuevas = 0, comprasNuevas = 0, produccionesNuevas = 0;
 
-  await db.transaction('rw', db.productos, db.ventas, db.insumos, db.recetas, db.compras, db.producciones, async () => {
+  await db.transaction('rw', db.productos, db.ventas, db.insumos, db.recetas, db.compras, db.producciones, db.promos, async () => {
     await db.productos.bulkPut(lista('productos'));
+    await db.promos.bulkPut(lista('promos'));
 
     const mapaInsumos = {};   // id en el archivo -> id en este celular
     for (const ins of lista('insumos')) {
@@ -1662,6 +1684,235 @@ async function cargarHistorialProduccion() {
     html += `<div style="font-size:14px; padding:5px 0; border-top:1px solid #333;"><b style="color:#00e676;">${formatearFechaHora(p.fecha)}</b> — ${detalle}</div>`;
   });
   cont.innerHTML = html + '</div>';
+}
+
+// =====================================================================
+// PROMOS
+// Una promo por producto: "llevando N unidades, pagás $P" (2x1, 3x2, 2 por $1500...).
+// En la venta se arman todos los packs posibles y lo que sobra se cobra a precio normal.
+// Si el feriante cambia el precio a mano, no se aplica la promo.
+// =====================================================================
+function redondear2(n) { return Math.round(n * 100) / 100; }
+
+function calcularVenta(cant, precioUnit, prod, promo) {
+  const sinPromo = { total: redondear2(cant * precioUnit), packs: 0, sueltas: cant, aplica: false, motivo: '', texto: '' };
+  if (!promo || !promo.activa) return sinPromo;
+  const texto = `${promo.cantidad} por $${promo.precio_pack}`;
+  if (Math.abs(precioUnit - prod.precio_ref) > 0.005) return { ...sinPromo, motivo: 'precio', texto };
+  const packs = Math.floor(cant / promo.cantidad);
+  if (packs === 0) return { ...sinPromo, motivo: 'cantidad', texto };
+  const sueltas = cant - packs * promo.cantidad;
+  return {
+    total: redondear2(packs * promo.precio_pack + sueltas * precioUnit),
+    packs, sueltas, aplica: true, motivo: '', texto
+  };
+}
+
+async function actualizarVistaVenta() {
+  const caja = document.getElementById('venta-resumen');
+  if (!caja) return;
+  const ocultar = () => caja.classList.add('hidden');
+  if (!productoSeleccionadoVenta) return ocultar();
+  const prod = await db.productos.get(productoSeleccionadoVenta.codigo);
+  if (!prod) return ocultar();
+
+  const cant = Number(document.getElementById('venta-cant').value);
+  const pVenta = parseFloat(document.getElementById('venta-precio').value);
+  if (!Number.isInteger(cant) || cant <= 0 || !Number.isFinite(pVenta) || pVenta < 0) return ocultar();
+
+  const promo = await db.promos.get(prod.codigo);
+  const c = calcularVenta(cant, pVenta, prod, promo);
+  let html = '';
+  if (promo && promo.activa) {
+    if (c.aplica) {
+      html += `<div style="color:#ffb74d; font-weight:bold;">🏷️ Promo aplicada: ${esc(c.texto)}</div>`;
+      html += `<div style="font-size:14px; color:#ccc;">${c.packs} × $${promo.precio_pack}` +
+              (c.sueltas > 0 ? ` + ${c.sueltas} suelta(s) × $${pVenta}` : '') + `</div>`;
+    } else if (c.motivo === 'precio') {
+      html += `<div style="color:#ffb74d;">🏷️ Hay una promo (${esc(c.texto)}), pero cambiaste el precio: no se aplica.</div>`;
+    } else {
+      html += `<div style="color:#ffb74d;">🏷️ Promo: ${esc(c.texto)}. Se aplica llevando ${promo.cantidad} o más.</div>`;
+    }
+  }
+  html += `<div style="font-size:22px; font-weight:bold; color:#00e676;">Total a cobrar: $${c.total.toFixed(2)}</div>`;
+  caja.innerHTML = html;
+  caja.classList.remove('hidden');
+}
+
+let promoProductoActual = null;
+
+async function cargarPantallaPromos() {
+  promoProductoActual = null;
+  document.getElementById('promo-buscar').value = '';
+  document.getElementById('promo-sugerencias').innerHTML = '';
+  document.getElementById('promo-form').classList.add('hidden');
+  await cargarListaPromos();
+}
+
+function crearFilaPromo(pr, p) {
+  const fila = document.createElement('div');
+  fila.className = 'card';
+
+  const titulo = document.createElement('div');
+  titulo.style.cssText = 'font-size:17px; font-weight:bold; color:#00d9ff;';
+  titulo.textContent = p.detalle;
+
+  const ganancia = pr.precio_pack - p.precio_costo * pr.cantidad;
+  const info = document.createElement('div');
+  info.style.cssText = `font-size:15px; margin:4px 0 10px 0; color:${ganancia < 0 ? '#ff5252' : '#ccc'};`;
+  info.textContent = `${pr.cantidad} por $${pr.precio_pack} · ${ganancia < 0 ? 'perdés' : 'ganás'} $${Math.abs(ganancia).toFixed(2)} por pack`;
+
+  const botones = document.createElement('div');
+  botones.className = 'dos-col';
+
+  const estado = document.createElement('button');
+  estado.className = 'btn ' + (pr.activa ? 'btn-green' : 'btn-gray');
+  estado.textContent = pr.activa ? '✓ ACTIVADA' : 'APAGADA';
+  estado.addEventListener('click', () => alternarPromo(pr.codigo));
+
+  const editar = document.createElement('button');
+  editar.className = 'btn btn-blue';
+  editar.textContent = '✏️ EDITAR';
+  editar.addEventListener('click', () => elegirProductoPromo(p));
+
+  botones.appendChild(estado);
+  botones.appendChild(editar);
+  fila.appendChild(titulo);
+  fila.appendChild(info);
+  fila.appendChild(botones);
+  return fila;
+}
+
+async function cargarListaPromos() {
+  const cont = document.getElementById('promos-lista');
+  cont.innerHTML = '';
+  const filas = [];
+  for (const pr of await db.promos.toArray()) {
+    const p = await db.productos.get(pr.codigo);
+    if (p) filas.push({ pr, p });
+  }
+  if (filas.length === 0) {
+    cont.innerHTML = '<div class="card" style="text-align:center; color:#aaa;">Todavía no cargaste promos.</div>';
+    return;
+  }
+  filas.sort((a, b) => a.p.detalle.localeCompare(b.p.detalle));
+  const activas = filas.filter(f => f.pr.activa).length;
+  const resumen = document.createElement('div');
+  resumen.style.cssText = 'text-align:center; color:#ffb74d; font-weight:bold; margin:10px 0;';
+  resumen.textContent = `${activas} de ${filas.length} promos activadas`;
+  cont.appendChild(resumen);
+  filas.forEach(({ pr, p }) => cont.appendChild(crearFilaPromo(pr, p)));
+}
+
+async function alternarPromo(codigo) {
+  const pr = await db.promos.get(codigo);
+  if (!pr) return;
+  await db.promos.update(codigo, { activa: pr.activa ? 0 : 1 });
+  await cargarListaPromos();
+}
+
+async function cambiarTodasPromos(estado) {
+  for (const pr of await db.promos.toArray()) {
+    await db.promos.update(pr.codigo, { activa: estado ? 1 : 0 });
+  }
+  await cargarListaPromos();
+}
+
+async function buscarProductoPromo(texto) {
+  const cont = document.getElementById('promo-sugerencias');
+  cont.innerHTML = '';
+  const t = (texto || '').trim().toLowerCase();
+  if (!t) return;
+  const prods = await db.productos
+    .filter(p => p.detalle.toLowerCase().includes(t) || p.codigo.toLowerCase().includes(t))
+    .limit(5)
+    .toArray();
+  prods.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'btn btn-blue';
+    b.style.fontSize = '15px';
+    b.textContent = `${p.detalle} ($${p.precio_ref.toFixed(2)})`;
+    b.addEventListener('click', () => elegirProductoPromo(p));
+    cont.appendChild(b);
+  });
+}
+
+async function elegirProductoPromo(p) {
+  promoProductoActual = p;
+  document.getElementById('promo-sugerencias').innerHTML = '';
+  document.getElementById('promo-buscar').value = p.detalle;
+  document.getElementById('promo-titulo').textContent = p.detalle;
+  document.getElementById('promo-ref').textContent = `Precio normal: $${p.precio_ref.toFixed(2)} · Costo: $${p.precio_costo.toFixed(2)}`;
+
+  const pr = await db.promos.get(p.codigo);
+  document.getElementById('promo-cantidad').value = pr ? pr.cantidad : '';
+  document.getElementById('promo-precio').value = pr ? pr.precio_pack : '';
+  document.getElementById('promo-activa').checked = pr ? !!pr.activa : true;
+  document.getElementById('promo-borrar').classList[pr ? 'remove' : 'add']('hidden');
+
+  const form = document.getElementById('promo-form');
+  form.classList.remove('hidden');
+  actualizarVistaPromo();
+  if (form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// "Llevando n, pagás 'pagas'": 2x1 = (2, 1), 3x2 = (3, 2)...
+function aplicarPresetPromo(n, pagas) {
+  if (!promoProductoActual) return;
+  document.getElementById('promo-cantidad').value = n;
+  document.getElementById('promo-precio').value = redondear2(promoProductoActual.precio_ref * pagas);
+  actualizarVistaPromo();
+}
+
+function actualizarVistaPromo() {
+  const vista = document.getElementById('promo-vista');
+  const p = promoProductoActual;
+  const n = Number(document.getElementById('promo-cantidad').value);
+  const precio = Number(document.getElementById('promo-precio').value);
+  if (!p || !Number.isInteger(n) || n < 2 || !(precio > 0)) {
+    vista.style.color = '#aaa';
+    vista.textContent = 'Completá la cantidad (2 o más) y cuánto pagan en total para ver la cuenta.';
+    return;
+  }
+  vista.style.color = '';
+  const normal = n * p.precio_ref;
+  const ganancia = precio - p.precio_costo * n;
+  let html = `Sin promo: ${n} × $${p.precio_ref.toFixed(2)} = $${normal.toFixed(2)}<br>Con la promo: <b>$${precio.toFixed(2)}</b>`;
+  if (precio < normal) html += ` (${Math.round((1 - precio / normal) * 100)}% menos)`;
+  html += '<br>';
+  if (precio >= normal) {
+    html += '<span style="color:#ffb74d;">⚠️ Esto no es un descuento: el precio es igual o mayor que el normal.</span>';
+  } else if (ganancia < 0) {
+    html += `<span style="color:#ff5252; font-weight:bold;">⚠️ Perdés $${(-ganancia).toFixed(2)} por pack: el costo de esas ${n} unidades es $${(p.precio_costo * n).toFixed(2)}.</span>`;
+  } else {
+    html += `<span style="color:#00e676; font-weight:bold;">Ganás $${ganancia.toFixed(2)} por pack.</span>`;
+  }
+  vista.innerHTML = html;
+}
+
+async function guardarPromo() {
+  const p = promoProductoActual;
+  if (!p) return alert("Primero buscá y elegí un producto.");
+  const n = Number(document.getElementById('promo-cantidad').value);
+  const precio = Number(document.getElementById('promo-precio').value);
+  if (!Number.isInteger(n) || n < 2) return alert("La cantidad tiene que ser un número entero, 2 o más.");
+  if (!(precio > 0)) return alert("Escribí cuánto pagan en total por esas unidades.");
+
+  const ganancia = precio - p.precio_costo * n;
+  if (ganancia < 0 && !confirm(`⚠️ Con esta promo perdés $${(-ganancia).toFixed(2)} por pack.\n¿Querés guardarla igual?`)) return;
+
+  const activa = document.getElementById('promo-activa').checked ? 1 : 0;
+  await db.promos.put({ codigo: p.codigo, cantidad: n, precio_pack: precio, activa });
+  alert(`✅ Promo guardada: ${p.detalle}, ${n} por $${precio}${activa ? '' : ' (apagada)'}.`);
+  await cargarPantallaPromos();
+}
+
+async function borrarPromoActual() {
+  const p = promoProductoActual;
+  if (!p) return;
+  if (!confirm(`¿Borrar la promo de "${p.detalle}"?`)) return;
+  await db.promos.delete(p.codigo);
+  await cargarPantallaPromos();
 }
 
 // Al elegir un insumo en la receta, se actualizan las unidades disponibles

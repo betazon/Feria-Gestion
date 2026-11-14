@@ -43,6 +43,7 @@
     .btn-teal { background-color: #008080; }
     .btn-red { background-color: #cc0000; }
     .btn-gray { background-color: #444; }
+    .btn-pink { background-color: #c2185b; }
     
     input, select { width: 100%; padding: 10px; margin: 5px 0; background-color: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 15px; }
     .card { background: #121212; border: 1px solid #333; padding: 10px; border-radius: 6px; margin-bottom: 8px; }
@@ -187,7 +188,8 @@
       <button class="tile btn-blue" onclick="mostrarPantalla('pantalla-armar')"><span class="ico">📦</span><span>MIS PRODUCTOS<small>Y recetas</small></span></button>
       <button class="tile btn-yellow" onclick="mostrarPantalla('pantalla-consulta')"><span class="ico">🔍</span><span>VER MI STOCK<small>Qué tengo</small></span></button>
       <button class="tile btn-teal" onclick="mostrarPantalla('pantalla-reportes-menu')"><span class="ico">📊</span><span>CÓMO ME FUE<small>Ventas y ganancia</small></span></button>
-      <button class="tile tile-wide btn-gray" onclick="mostrarPantalla('pantalla-mas')"><span class="ico">⚙️</span><span>MÁS OPCIONES<small>Respaldo y otras</small></span></button>
+      <button class="tile btn-pink" onclick="mostrarPantalla('pantalla-promos')"><span class="ico">🏷️</span><span>PROMOS<small>2x1, 3x2 y más</small></span></button>
+      <button class="tile btn-gray" onclick="mostrarPantalla('pantalla-mas')"><span class="ico">⚙️</span><span>MÁS OPCIONES<small>Respaldo y otras</small></span></button>
     </div>
   </div>
 
@@ -231,6 +233,55 @@
       <button class="tile btn-red" onclick="mostrarPantalla('pantalla-borrar')"><span class="ico">🗑️</span><span>BORRAR PRODUCTO<small>Sacar de mi lista</small></span></button>
       <button class="tile btn-gray" id="btn-cambiar-rubro" onclick="cambiarRubro()"></button>
     </div>
+    <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
+  </div>
+
+  <!-- PANTALLA: PROMOS -->
+  <div id="pantalla-promos" class="hidden">
+    <h3>PROMOS</h3>
+    <div class="card tip">
+      <p><b>🏷️ Promos de cierre:</b> cargá "2 por $1500", "2x1", "3x2"... Mientras estén activadas, la venta las aplica sola.</p>
+    </div>
+
+    <div class="dos-col">
+      <button class="btn btn-green" onclick="cambiarTodasPromos(1)">▶ PRENDER TODAS</button>
+      <button class="btn btn-gray" onclick="cambiarTodasPromos(0)">⏸ APAGAR TODAS</button>
+    </div>
+
+    <div id="promos-lista"></div>
+
+    <h4 style="text-align:left; margin-top:18px;">Crear o cambiar una promo</h4>
+    <label for="promo-buscar">Buscar producto</label>
+    <input type="text" id="promo-buscar" placeholder="Ej: budín" oninput="buscarProductoPromo(this.value)">
+    <div id="promo-sugerencias"></div>
+
+    <div id="promo-form" class="card hidden">
+      <div id="promo-titulo" style="font-size:18px; font-weight:bold; color:#00d9ff;"></div>
+      <div id="promo-ref" style="font-size:14px; color:#aaa; margin-bottom:6px;"></div>
+
+      <label>Armar rápido</label>
+      <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px;">
+        <button class="btn btn-blue" onclick="aplicarPresetPromo(2, 1)">2x1</button>
+        <button class="btn btn-blue" onclick="aplicarPresetPromo(3, 1)">3x1</button>
+        <button class="btn btn-blue" onclick="aplicarPresetPromo(3, 2)">3x2</button>
+      </div>
+
+      <label for="promo-cantidad">Llevando cuántas unidades</label>
+      <input type="number" id="promo-cantidad" inputmode="numeric" placeholder="Ej: 2" oninput="actualizarVistaPromo()">
+      <label for="promo-precio">Pagan en total ($)</label>
+      <input type="number" id="promo-precio" inputmode="decimal" placeholder="Ej: 1500" oninput="actualizarVistaPromo()">
+
+      <div style="display:flex; align-items:center; gap:12px; margin:12px 0;">
+        <input type="checkbox" id="promo-activa" checked style="width:28px; height:28px; margin:0; flex-shrink:0;">
+        <label for="promo-activa" style="margin:0;">Promo activada</label>
+      </div>
+
+      <div id="promo-vista" class="card" style="text-align:center;"></div>
+
+      <button class="btn btn-big btn-green" onclick="guardarPromo()"><span class="ico">✅</span><span>GUARDAR PROMO</span></button>
+      <button id="promo-borrar" class="btn btn-red hidden" onclick="borrarPromoActual()">🗑️ Borrar esta promo</button>
+    </div>
+
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
 
@@ -305,9 +356,10 @@
     </div>
 
     <label for="venta-precio">Precio de venta final ($)</label>
-    <input type="number" id="venta-precio" placeholder="Ej: 1500">
+    <input type="number" id="venta-precio" inputmode="decimal" placeholder="Ej: 1500" oninput="actualizarVistaVenta()">
     <label for="venta-cant">Cantidad</label>
-    <input type="number" id="venta-cant" value="1">
+    <input type="number" id="venta-cant" inputmode="numeric" value="1" oninput="actualizarVistaVenta()">
+    <div id="venta-resumen" class="card hidden" style="text-align:center;"></div>
     <button class="btn btn-green" onclick="validarYConfirmarVenta()">CONFIRMAR VENTA</button>
     <button class="btn btn-gray" onclick="mostrarPantalla('pantalla-menu')">VOLVER AL MENÚ</button>
   </div>
